@@ -22,6 +22,24 @@
   // ---------- Footer year ----------
   const yearEl = document.getElementById('year');
   if (yearEl) yearEl.textContent = new Date().getFullYear();
+
+  // ---------- Accounts (loaded only when Supabase is configured) ----------
+  // Keeps the rest of the site zero-dependency until you fill in
+  // supabase-config.js. See SUPABASE_SETUP.md.
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = src; s.onload = resolve; s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+  loadScript('/supabase-config.js')
+    .then(() => {
+      if (!window.SUPABASE_CONFIGURED) return;            // accounts not set up yet
+      return loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2')
+        .then(() => loadScript('/auth.js'));
+    })
+    .catch(err => console.warn('Account features unavailable:', err));
 })();
 
 /* Exposed helpers for tool pages */

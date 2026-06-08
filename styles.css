@@ -854,6 +854,95 @@ select.needs-pick {
   margin-bottom: 2px;
 }
 
+/* ----------------------------- Accounts / auth ----------------------------- */
+.auth-control { position: relative; display: inline-flex; align-items: center; }
+.auth-signin {
+  background: var(--accent); color: #fff; border: none;
+  padding: 7px 16px; border-radius: 980px;
+  font-size: 13px; font-weight: 500;
+  transition: background-color 0.15s ease;
+}
+.auth-signin:hover { background: var(--accent-hover); }
+
+.auth-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  padding: 4px 10px 4px 4px; border-radius: 980px;
+  color: var(--text); font-size: 13px;
+}
+.auth-chip:hover { background: var(--border); }
+.auth-chip img, .auth-initial {
+  width: 24px; height: 24px; border-radius: 50%;
+  object-fit: cover; flex-shrink: 0;
+}
+.auth-initial {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--accent); color: #fff; font-size: 12px; font-weight: 600;
+}
+.auth-name { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.auth-menu {
+  position: absolute; top: calc(100% + 8px); right: 0;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-lg);
+  min-width: 160px; padding: 6px; z-index: 60;
+  display: flex; flex-direction: column;
+}
+.auth-menu a, .auth-menu button {
+  text-align: left; background: transparent; border: none;
+  padding: 9px 12px; border-radius: 8px;
+  color: var(--text); font-size: 14px;
+}
+.auth-menu a:hover, .auth-menu button:hover { background: var(--bg-elevated); }
+
+.auth-modal { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; }
+.auth-modal[hidden] { display: none; }
+.auth-modal-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.45); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
+.auth-modal-card {
+  position: relative; z-index: 1;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-xl); box-shadow: var(--shadow-lg);
+  width: calc(100% - 40px); max-width: 400px;
+  padding: 32px 28px;
+}
+.auth-modal-x {
+  position: absolute; top: 14px; right: 16px;
+  background: transparent; border: none; color: var(--text-muted);
+  font-size: 24px; line-height: 1; padding: 4px;
+}
+.auth-modal-card h2 {
+  font-family: var(--font-display); font-size: 22px; font-weight: 600;
+  margin: 0 0 6px; text-align: center;
+}
+.auth-modal-sub { margin: 0 0 22px; font-size: 13px; color: var(--text-secondary); text-align: center; line-height: 1.5; }
+.auth-providers { display: flex; flex-direction: column; gap: 10px; }
+.auth-provider {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%; padding: 12px 16px;
+  background: var(--bg); border: 1px solid var(--border-strong);
+  border-radius: 10px; color: var(--text);
+  font-size: 15px; font-weight: 500;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+.auth-provider:hover { background: var(--bg-elevated); border-color: var(--text-muted); }
+.auth-provider svg { flex-shrink: 0; }
+.auth-modal-fine { margin: 20px 0 0; font-size: 12px; color: var(--text-muted); text-align: center; line-height: 1.5; }
+.auth-modal-fine a { color: var(--accent); }
+
+.account-card {
+  display: flex; align-items: center; gap: 16px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 20px 24px; margin-bottom: 8px;
+}
+.account-avatar { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.account-avatar-fallback {
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent); color: #fff; font-size: 24px; font-weight: 600;
+}
+.account-name { font-size: 18px; font-weight: 600; color: var(--text); }
+.account-email { font-size: 14px; color: var(--text-secondary); }
+.account-provider { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+
 /* ----------------------------- Legal / content pages ----------------------------- */
 .legal { padding: 56px 0 72px; }
 .legal .container { max-width: 760px; }

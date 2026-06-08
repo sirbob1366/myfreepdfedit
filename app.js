@@ -51,5 +51,36 @@ window.PDFUtils = {
     el.textContent = msg || '';
     el.classList.remove('error', 'success');
     if (type) el.classList.add(type);
+  },
+
+  escapeHTML(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  },
+
+  // Standard drop-zone setup: returns the file array reference + a re-render hook
+  // selector = '#dropzone', input = '#file-input', accept = 'application/pdf', multiple = true
+  attachDropzone(opts) {
+    const { dropzone, input, accept = 'application/pdf', onFiles } = opts;
+    function deliver(fileList) {
+      const arr = Array.from(fileList).filter(f =>
+        accept === '*' ? true :
+        f.type === accept || f.name.toLowerCase().endsWith('.' + accept.split('/').pop())
+      );
+      if (!arr.length) {
+        PDFUtils.setStatus('Please select a valid file.', 'error');
+        return;
+      }
+      onFiles(arr);
+    }
+    input.addEventListener('change', e => deliver(e.target.files));
+    ['dragenter', 'dragover'].forEach(ev =>
+      dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.add('is-drag'); })
+    );
+    ['dragleave', 'drop'].forEach(ev =>
+      dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.remove('is-drag'); })
+    );
+    dropzone.addEventListener('drop', e => {
+      if (e.dataTransfer?.files) deliver(e.dataTransfer.files);
+    });
   }
 };

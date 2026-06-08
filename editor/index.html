@@ -159,8 +159,9 @@
 <input type="file" id="add-file-input" accept="application/pdf" style="display:none;" />
 <input type="file" id="sig-image-input" accept="image/*" style="display:none;" />
 
-<!-- pdf-lib + pdf.js -->
+<!-- pdf-lib + fontkit + pdf.js -->
 <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="https://unpkg.com/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
 <script type="module">
   import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs';
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs';

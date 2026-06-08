@@ -184,6 +184,11 @@
       el.style.top = tl.y + 'px';
       el.style.color = a.color;
       el.style.fontSize = (a.size * state.scale) + 'px';
+      const fam = PDFEngine.FONT_FAMILIES[a.font] || PDFEngine.FONT_FAMILIES.arial;
+      el.style.fontFamily = fam.css;
+      el.style.fontWeight = a.bold ? '700' : '400';
+      el.style.fontStyle = a.italic ? 'italic' : 'normal';
+      el.style.textDecoration = a.underline ? 'underline' : 'none';
       if (a.bg) el.style.background = a.bg;
 
       const edit = document.createElement('div');
@@ -365,7 +370,8 @@
     const a = {
       id: uid(), type: 'text', pageIndex: state.currentPage,
       x: p.x, yTop: p.y, w: 140, h: (opts.size || 16) * 1.4,
-      text: '', size: opts.size || 16, color: opts.color || '#111111', bg: opts.bg || null
+      text: '', size: opts.size || 16, color: opts.color || '#111111', bg: opts.bg || null,
+      font: opts.font || 'arial', bold: !!opts.bold, italic: !!opts.italic, underline: !!opts.underline
     };
     state.annotations.push(a);
     selectAnn(a.id);
@@ -428,6 +434,7 @@
     let content;
     try { content = await page.getTextContent(); }
     catch { return; }
+    const styles = content.styles || {};
     for (const item of content.items) {
       if (!item.str || !item.str.trim()) continue;
       const tr = item.transform; // [a,b,c,d,e,f] in PDF user space
@@ -443,14 +450,35 @@
       box.title = 'Click to edit this text';
       box.addEventListener('pointerdown', e => {
         e.stopPropagation();
-        editExistingRun(item, size);
+        editExistingRun(item, size, detectFont(item, styles, page));
         box.style.display = 'none';
       });
       textLayer.appendChild(box);
     }
   }
 
-  function editExistingRun(item, size) {
+  // Best-effort match of an existing text run to one of our 5 font families.
+  function detectFont(item, styles, page) {
+    let name = '';
+    try {
+      const f = page.commonObjs.get(item.fontName);
+      name = (f && f.name) || '';
+    } catch { /* font not resolved */ }
+    const style = styles[item.fontName] || {};
+    const fam = (style.fontFamily || '').toLowerCase();
+    const ln = (name || '').toLowerCase();
+    const bold = /bold|black|semibold|heavy|[-_ ]bd/.test(ln);
+    const italic = /italic|oblique/.test(ln);
+    let key = 'arial';
+    if (/calibri|carlito/.test(ln)) key = 'calibri';
+    else if (/georgia|gelasio/.test(ln)) key = 'georgia';
+    else if (/courier|mono|consolas/.test(ln) || fam.includes('mono')) key = 'courier';
+    else if (/times|serif|cambria|garamond|book antiqua|minion|roman/.test(ln) || (fam.includes('serif') && !fam.includes('sans'))) key = 'times';
+    else key = 'arial';
+    return { font: key, bold, italic };
+  }
+
+  function editExistingRun(item, size, detected) {
     const tr = item.transform;
     const ascent = size * 0.8;
     const a = {
@@ -458,7 +486,9 @@
       x: tr[4], yTop: tr[5] + ascent,
       w: item.width, h: size * 1.25,
       text: item.str, size: Math.round(size),
-      color: '#111111', bg: '#ffffff'   // white cover hides the original glyphs
+      color: '#111111', bg: '#ffffff',   // white cover hides the original glyphs
+      font: (detected && detected.font) || 'arial',
+      bold: !!(detected && detected.bold), italic: !!(detected && detected.italic), underline: false
     };
     state.annotations.push(a);
     selectAnn(a.id);
@@ -633,22 +663,46 @@
   function inspText(a) {
     inspectorTitle.textContent = a.bg ? 'Edit text' : 'Text';
     inspectorHint.textContent = 'Type to edit. Drag the grip to move.';
+    const fontOpts = Object.entries(PDFEngine.FONT_FAMILIES)
+      .map(([k, f]) => `<option value="${k}" ${a.font === k ? 'selected' : ''}>${f.label}</option>`).join('');
     inspectorBody.innerHTML = `
+      <div class="field"><label>Font</label>
+        <select id="t-font">${fontOpts}</select>
+      </div>
       <div class="field-row">
         <div class="field"><label>Size</label><input type="number" id="t-size" value="${a.size}" min="4" max="120" /></div>
         <div class="field"><label>Color</label><input type="color" id="t-color" value="${a.color}" /></div>
       </div>
+      <div class="field">
+        <label>Style</label>
+        <div class="style-toggles">
+          <button type="button" class="sty-btn ${a.bold ? 'active' : ''}" id="t-bold" style="font-weight:700;">B</button>
+          <button type="button" class="sty-btn ${a.italic ? 'active' : ''}" id="t-italic" style="font-style:italic;">I</button>
+          <button type="button" class="sty-btn ${a.underline ? 'active' : ''}" id="t-underline" style="text-decoration:underline;">U</button>
+        </div>
+      </div>
       <label class="check"><input type="checkbox" id="t-bg" ${a.bg ? 'checked' : ''} /> White background (hide content underneath)</label>
       <button class="btn btn-ghost btn-block" id="t-del" type="button" style="margin-top:12px;">Delete text</button>
     `;
-    $('#t-size').oninput = () => { a.size = Number($('#t-size').value) || a.size; renderOverlay(); reselect(a.id); };
+    const apply = () => { renderOverlay(); reselect(a.id); measureText(a); };
+    $('#t-font').onchange = () => { a.font = $('#t-font').value; apply(); };
+    $('#t-size').oninput = () => { a.size = Number($('#t-size').value) || a.size; apply(); };
     $('#t-color').oninput = () => { a.color = $('#t-color').value; renderOverlay(); reselect(a.id); };
+    $('#t-bold').onclick = () => { a.bold = !a.bold; $('#t-bold').classList.toggle('active', a.bold); apply(); };
+    $('#t-italic').onclick = () => { a.italic = !a.italic; $('#t-italic').classList.toggle('active', a.italic); apply(); };
+    $('#t-underline').onclick = () => { a.underline = !a.underline; $('#t-underline').classList.toggle('active', a.underline); renderOverlay(); reselect(a.id); };
     $('#t-bg').onchange = () => { a.bg = $('#t-bg').checked ? '#ffffff' : null; renderOverlay(); reselect(a.id); };
     $('#t-del').onclick = () => deleteAnn(a.id);
   }
 
   function reselect(id) {
     annLayer.querySelectorAll('.ann').forEach(n => n.classList.toggle('selected', n.dataset.id === id));
+  }
+
+  // Re-measure a text box after a style change that affects its size.
+  function measureText(a) {
+    const node = annLayer.querySelector(`[data-id="${a.id}"] .ann-text-edit`);
+    if (node) { a.w = node.offsetWidth / state.scale; a.h = node.offsetHeight / state.scale; }
   }
 
   function inspSelectedBox(a, title, hint) {

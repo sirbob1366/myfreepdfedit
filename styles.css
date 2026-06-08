@@ -636,6 +636,52 @@ img, svg { display: block; max-width: 100%; }
 }
 .check input { margin-top: 2px; }
 
+/* Bold / italic / underline toggles */
+.style-toggles { display: flex; gap: 6px; }
+.sty-btn {
+  flex: 1; height: 34px;
+  background: var(--bg); border: 1px solid var(--border-strong);
+  border-radius: 8px; color: var(--text);
+  font-size: 15px;
+  transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+.sty-btn:hover { background: var(--bg-elevated); }
+.sty-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* Embedded font previews (so Calibri/Georgia look right on non-Windows too) */
+@font-face {
+  font-family: 'Carlito'; font-weight: 400; font-style: normal; font-display: swap;
+  src: url('https://cdn.jsdelivr.net/gh/googlefonts/carlito@main/fonts/ttf/Carlito-Regular.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Carlito'; font-weight: 700; font-style: normal; font-display: swap;
+  src: url('https://cdn.jsdelivr.net/gh/googlefonts/carlito@main/fonts/ttf/Carlito-Bold.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Carlito'; font-weight: 400; font-style: italic; font-display: swap;
+  src: url('https://cdn.jsdelivr.net/gh/googlefonts/carlito@main/fonts/ttf/Carlito-Italic.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Carlito'; font-weight: 700; font-style: italic; font-display: swap;
+  src: url('https://cdn.jsdelivr.net/gh/googlefonts/carlito@main/fonts/ttf/Carlito-BoldItalic.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Gelasio'; font-weight: 400; font-style: normal; font-display: swap;
+  src: url('https://cdn.jsdelivr.net/npm/@expo-google-fonts/gelasio/Gelasio_400Regular.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Gelasio'; font-weight: 700; font-style: normal; font-display: swap;
+  src: url('https://cdn.jsdelivr.net/npm/@expo-google-fonts/gelasio/Gelasio_700Bold.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Gelasio'; font-weight: 400; font-style: italic; font-display: swap;
+  src: url('https://cdn.jsdelivr.net/npm/@expo-google-fonts/gelasio/Gelasio_400Regular_Italic.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Gelasio'; font-weight: 700; font-style: italic; font-display: swap;
+  src: url('https://cdn.jsdelivr.net/npm/@expo-google-fonts/gelasio/Gelasio_700Bold_Italic.ttf') format('truetype');
+}
+
 .editor-inspector {
   background: var(--bg-card);
   border-left: 1px solid var(--border);

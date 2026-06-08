@@ -177,6 +177,56 @@
     return out.save();
   };
 
+  // ---------- Fonts ----------
+  // Five common document fonts. Arial/Times/Courier map to the built-in PDF
+  // standard fonts (no embedding). Calibri/Georgia use OFL, metric-compatible
+  // substitutes (Carlito / Gelasio) embedded on demand via fontkit.
+  const FONT_FAMILIES = {
+    arial: {
+      label: 'Arial', css: 'Arial, Helvetica, sans-serif', kind: 'standard',
+      std: { regular: 'Helvetica', bold: 'HelveticaBold', italic: 'HelveticaOblique', bolditalic: 'HelveticaBoldOblique' }
+    },
+    times: {
+      label: 'Times New Roman', css: '"Times New Roman", Times, serif', kind: 'standard',
+      std: { regular: 'TimesRoman', bold: 'TimesRomanBold', italic: 'TimesRomanItalic', bolditalic: 'TimesRomanBoldItalic' }
+    },
+    courier: {
+      label: 'Courier', css: '"Courier New", Courier, monospace', kind: 'standard',
+      std: { regular: 'Courier', bold: 'CourierBold', italic: 'CourierOblique', bolditalic: 'CourierBoldOblique' }
+    },
+    calibri: {
+      label: 'Calibri', css: 'Calibri, Carlito, sans-serif', kind: 'embed',
+      url: {
+        regular: 'https://cdn.jsdelivr.net/gh/googlefonts/carlito@main/fonts/ttf/Carlito-Regular.ttf',
+        bold: 'https://cdn.jsdelivr.net/gh/googlefonts/carlito@main/fonts/ttf/Carlito-Bold.ttf',
+        italic: 'https://cdn.jsdelivr.net/gh/googlefonts/carlito@main/fonts/ttf/Carlito-Italic.ttf',
+        bolditalic: 'https://cdn.jsdelivr.net/gh/googlefonts/carlito@main/fonts/ttf/Carlito-BoldItalic.ttf'
+      }
+    },
+    georgia: {
+      label: 'Georgia', css: 'Georgia, Gelasio, serif', kind: 'embed',
+      url: {
+        regular: 'https://cdn.jsdelivr.net/npm/@expo-google-fonts/gelasio/Gelasio_400Regular.ttf',
+        bold: 'https://cdn.jsdelivr.net/npm/@expo-google-fonts/gelasio/Gelasio_700Bold.ttf',
+        italic: 'https://cdn.jsdelivr.net/npm/@expo-google-fonts/gelasio/Gelasio_400Regular_Italic.ttf',
+        bolditalic: 'https://cdn.jsdelivr.net/npm/@expo-google-fonts/gelasio/Gelasio_700Bold_Italic.ttf'
+      }
+    }
+  };
+  Engine.FONT_FAMILIES = FONT_FAMILIES;
+  Engine.variantOf = (bold, italic) =>
+    bold && italic ? 'bolditalic' : bold ? 'bold' : italic ? 'italic' : 'regular';
+
+  const _fontBytesCache = {};
+  Engine.loadFontBytes = async function (url) {
+    if (_fontBytesCache[url]) return _fontBytesCache[url];
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Font download failed: ' + url);
+    const buf = await res.arrayBuffer();
+    _fontBytesCache[url] = buf;
+    return buf;
+  };
+
   // ---------- Apply live annotations (text / signature / redact / whiteout) ----------
   // annotations: [{ id, type:'text'|'signature'|'redact', pageIndex,
   //                 x, yTop, w, h,                         // PDF points, bottom-left origin; yTop = top edge
@@ -186,7 +236,29 @@
   Engine.applyAnnotations = async function (loaded, annotations = [], pageRotations = {}) {
     const out = await PDFLib.PDFDocument.load(loaded.bytes, { ignoreEncryption: true });
     const pages = out.getPages();
-    let font = null;
+
+    // Per-document font resolution + cache.
+    const fontCache = new Map();
+    let fontkitRegistered = false;
+    async function resolveFont(familyKey, variant) {
+      const fam = FONT_FAMILIES[familyKey] || FONT_FAMILIES.arial;
+      const key = (FONT_FAMILIES[familyKey] ? familyKey : 'arial') + ':' + variant;
+      if (fontCache.has(key)) return fontCache.get(key);
+      let font;
+      if (fam.kind === 'standard') {
+        font = await out.embedFont(PDFLib.StandardFonts[fam.std[variant]]);
+      } else {
+        if (!fontkitRegistered) {
+          if (!window.fontkit) throw new Error('fontkit not loaded');
+          out.registerFontkit(window.fontkit);
+          fontkitRegistered = true;
+        }
+        const bytes = await Engine.loadFontBytes(fam.url[variant]);
+        font = await out.embedFont(bytes, { subset: true });
+      }
+      fontCache.set(key, font);
+      return font;
+    }
 
     const byPage = {};
     for (const a of annotations) (byPage[a.pageIndex] ||= []).push(a);
@@ -210,13 +282,24 @@
           }
           const text = (a.text || '');
           if (text.trim()) {
-            if (!font) font = await out.embedFont(PDFLib.StandardFonts.Helvetica);
             const size = a.size || 14;
             const c = hexToRgb(a.color || '#000000');
+            const color = PDFLib.rgb(c.r, c.g, c.b);
+            const font = await resolveFont(a.font || 'arial', Engine.variantOf(a.bold, a.italic));
             const lineHeight = size * 1.2;
             let baseline = a.yTop - size; // treat yTop as the top of the cap height
             for (const line of text.split('\n')) {
-              page.drawText(line, { x: a.x, y: baseline, size, font, color: PDFLib.rgb(c.r, c.g, c.b) });
+              page.drawText(line, { x: a.x, y: baseline, size, font, color });
+              if (a.underline && line.trim()) {
+                let lineWidth;
+                try { lineWidth = font.widthOfTextAtSize(line, size); }
+                catch { lineWidth = line.length * size * 0.5; }
+                const uy = baseline - size * 0.13;
+                page.drawLine({
+                  start: { x: a.x, y: uy }, end: { x: a.x + lineWidth, y: uy },
+                  thickness: Math.max(0.5, size * 0.06), color
+                });
+              }
               baseline -= lineHeight;
             }
           }

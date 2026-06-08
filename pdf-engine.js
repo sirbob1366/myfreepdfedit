@@ -177,7 +177,76 @@
     return out.save();
   };
 
+  // ---------- Apply live annotations (text / signature / redact / whiteout) ----------
+  // annotations: [{ id, type:'text'|'signature'|'redact', pageIndex,
+  //                 x, yTop, w, h,                         // PDF points, bottom-left origin; yTop = top edge
+  //                 text, size, color('#rrggbb'), bg('#rrggbb'|null),  // text
+  //                 imageBytes, mime }]                     // signature
+  // pageRotations: { pageIndex: deltaDegrees } applied on top of each page's own rotation.
+  Engine.applyAnnotations = async function (loaded, annotations = [], pageRotations = {}) {
+    const out = await PDFLib.PDFDocument.load(loaded.bytes, { ignoreEncryption: true });
+    const pages = out.getPages();
+    let font = null;
+
+    const byPage = {};
+    for (const a of annotations) (byPage[a.pageIndex] ||= []).push(a);
+
+    for (const [idxStr, list] of Object.entries(byPage)) {
+      const page = pages[Number(idxStr)];
+      if (!page) continue;
+      for (const a of list) {
+        const bottom = a.yTop - a.h;
+        if (a.type === 'redact') {
+          page.drawRectangle({ x: a.x, y: bottom, width: a.w, height: a.h, color: PDFLib.rgb(0, 0, 0) });
+        } else if (a.type === 'signature') {
+          const img = a.mime === 'image/jpeg'
+            ? await out.embedJpg(a.imageBytes)
+            : await out.embedPng(a.imageBytes);
+          page.drawImage(img, { x: a.x, y: bottom, width: a.w, height: a.h });
+        } else if (a.type === 'text') {
+          if (a.bg) {
+            const bg = hexToRgb(a.bg);
+            page.drawRectangle({ x: a.x - 1, y: bottom, width: a.w + 2, height: a.h, color: PDFLib.rgb(bg.r, bg.g, bg.b) });
+          }
+          const text = (a.text || '');
+          if (text.trim()) {
+            if (!font) font = await out.embedFont(PDFLib.StandardFonts.Helvetica);
+            const size = a.size || 14;
+            const c = hexToRgb(a.color || '#000000');
+            const lineHeight = size * 1.2;
+            let baseline = a.yTop - size; // treat yTop as the top of the cap height
+            for (const line of text.split('\n')) {
+              page.drawText(line, { x: a.x, y: baseline, size, font, color: PDFLib.rgb(c.r, c.g, c.b) });
+              baseline -= lineHeight;
+            }
+          }
+        }
+      }
+    }
+
+    if (pageRotations && Object.keys(pageRotations).length) {
+      pages.forEach((p, i) => {
+        const deg = pageRotations[i];
+        if (!deg) return;
+        const current = p.getRotation().angle;
+        p.setRotation(PDFLib.degrees((current + Number(deg)) % 360));
+      });
+    }
+
+    return out.save();
+  };
+
   // ---------- Helpers ----------
+  function hexToRgb(hex) {
+    const h = String(hex || '#000000').replace('#', '');
+    return {
+      r: parseInt(h.slice(0, 2), 16) / 255,
+      g: parseInt(h.slice(2, 4), 16) / 255,
+      b: parseInt(h.slice(4, 6), 16) / 255
+    };
+  }
+  Engine.hexToRgb = hexToRgb;
+
   function stripExt(name) {
     return name.replace(/\.[^.]+$/, '');
   }

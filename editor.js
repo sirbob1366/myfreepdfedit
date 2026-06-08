@@ -1,5 +1,8 @@
 /* ===========================================================
-   editor.js — Unified PDF editor controller
+   editor.js — Live WYSIWYG PDF editor controller
+   Renders the actual page to a canvas and lets users place,
+   drag, edit, sign and redact directly on the page. Edits are
+   kept live in state and baked into the PDF only on export.
    =========================================================== */
 
 (function () {
@@ -7,13 +10,22 @@
 
   // ---------- State ----------
   const state = {
-    loaded: null,           // { doc, bytes, name, size }
-    thumbs: [],             // [{ pageIndex, dataUrl, width, height }]
-    pageRotations: {},      // { pageIndex: 0|90|180|270 }
-    selectedPages: new Set(),
-    currentTool: null,
+    loaded: null,            // { doc, bytes, name, size }
+    pdfjsDoc: null,          // open pdf.js document (for live re-render)
+    numPages: 0,
+    currentPage: 0,          // 0-based
+    scale: 1.5,
+    viewport: null,          // current pdf.js viewport (with rotation)
+    annotations: [],         // live edits across all pages
+    pageRotations: {},       // { pageIndex: deltaDegrees }
+    selectedPages: new Set(),// for page ops (rotate/split/delete)
+    currentTool: 'select',
+    selectedAnnId: null,
+    pendingSignature: null,  // { imageBytes, mime, dataUrl, aspect }
     pdfjsReady: false
   };
+
+  const PAGE_OP_TOOLS = ['rotate', 'split', 'delete'];
 
   // ---------- DOM ----------
   const $ = sel => document.querySelector(sel);
@@ -22,55 +34,26 @@
   const addInput = $('#add-file-input');
   const sigInput = $('#sig-image-input');
   const emptyEl = $('#editor-empty');
-  const loadedEl = $('#editor-loaded');
-  const grid = $('#thumb-grid');
-  const currentFile = $('#current-file');
+  const toolbar = $('#viewer-toolbar');
+  const stage = $('#page-stage');
+  const canvas = $('#page-canvas');
+  const ctx = canvas.getContext('2d');
+  const annLayer = $('#ann-layer');
+  const textLayer = $('#text-layer');
+  const pagesRail = $('#editor-pages');
   const inspectorTitle = $('#inspector-title');
   const inspectorHint = $('#inspector-hint');
   const inspectorBody = $('#inspector-body');
+  const navPage = $('#nav-page');
+  const navTotal = $('#nav-total');
+  const zoomLabel = $('#zoom-label');
+  const vtFile = $('#vt-file');
+
+  const uid = () => 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
   // ---------- pdf.js readiness ----------
   if (window.pdfjsLib) state.pdfjsReady = true;
   window.addEventListener('pdfjs-ready', () => { state.pdfjsReady = true; });
-
-  // ---------- File loading ----------
-  PDFUtils.attachDropzone({
-    dropzone, input: fileInput,
-    onFiles: files => loadFile(files[0])
-  });
-
-  async function loadFile(file) {
-    PDFUtils.setStatus('Loading…');
-    try {
-      await ensurePdfjs();
-      state.loaded = await PDFEngine.loadPdf(file);
-      state.pageRotations = {};
-      state.selectedPages.clear();
-      await renderThumbnails();
-      emptyEl.style.display = 'none';
-      loadedEl.style.display = 'block';
-      currentFile.innerHTML = `
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5">
-          <rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 9h6M9 13h6M9 17h4" stroke-linecap="round"/>
-        </svg>
-        <span class="file-pill-name">${PDFUtils.escapeHTML(state.loaded.name)}</span>
-        <span style="color: var(--text-muted); font-size: 12px;">${PDFUtils.formatBytes(state.loaded.size)} · ${state.thumbs.length} pages</span>
-      `;
-      enableTools();
-      showInspector('idle');
-      PDFUtils.setStatus('');
-
-      // If a tool was requested via URL hash (e.g. /editor/#sign), open it
-      const requested = location.hash.replace('#', '');
-      if (requested) {
-        const btn = document.querySelector(`[data-tool="${requested}"]`);
-        if (btn) btn.click();
-      }
-    } catch (err) {
-      console.error(err);
-      PDFUtils.setStatus('Could not open this file. Make sure it is a valid PDF.', 'error');
-    }
-  }
 
   async function ensurePdfjs(timeout = 5000) {
     if (state.pdfjsReady) return;
@@ -80,41 +63,475 @@
     });
   }
 
-  async function renderThumbnails() {
-    state.thumbs = await PDFEngine.renderThumbnails(state.loaded);
-    drawGrid();
-  }
+  // ---------- File loading ----------
+  PDFUtils.attachDropzone({ dropzone, input: fileInput, onFiles: files => loadFile(files[0]) });
 
-  function drawGrid() {
-    grid.innerHTML = '';
-    state.thumbs.forEach(t => {
-      const item = document.createElement('div');
-      const rot = state.pageRotations[t.pageIndex] || 0;
-      item.className = 'thumb-item thumb-rotated' + (state.selectedPages.has(t.pageIndex) ? ' selected' : '');
-      item.dataset.page = t.pageIndex;
-      item.dataset.rotation = rot;
-      item.innerHTML = `
-        <img src="${t.dataUrl}" alt="Page ${t.pageIndex + 1}" />
-        <span class="thumb-num">${t.pageIndex + 1}</span>
-      `;
-      item.addEventListener('click', () => togglePage(t.pageIndex));
-      grid.appendChild(item);
-    });
-  }
+  async function loadFile(file) {
+    PDFUtils.setStatus('Loading…');
+    try {
+      await ensurePdfjs();
+      state.loaded = await PDFEngine.loadPdf(file);
+      state.annotations = [];
+      state.pageRotations = {};
+      state.selectedPages.clear();
+      state.selectedAnnId = null;
+      state.currentPage = 0;
+      await openPdfjs();
+      emptyEl.style.display = 'none';
+      stage.style.display = 'block';
+      toolbar.style.display = 'flex';
+      enableTools();
+      setTool('select');
+      vtFile.textContent = `${state.loaded.name} · ${PDFUtils.formatBytes(state.loaded.size)}`;
+      await renderThumbs();
+      await renderPage();
+      PDFUtils.setStatus('');
 
-  function togglePage(idx) {
-    if (state.selectedPages.has(idx)) state.selectedPages.delete(idx);
-    else state.selectedPages.add(idx);
-    drawGrid();
-    // Refresh inspector if a selection-aware tool is open
-    if (['rotate', 'split', 'delete'].includes(state.currentTool)) {
-      showInspector(state.currentTool);
+      const requested = location.hash.replace('#', '');
+      if (requested && document.querySelector(`[data-tool="${requested}"]`)) {
+        setTool(requested);
+      }
+    } catch (err) {
+      console.error(err);
+      PDFUtils.setStatus('Could not open this file. Make sure it is a valid PDF.', 'error');
     }
+  }
+
+  async function openPdfjs() {
+    state.pdfjsDoc = await pdfjsLib.getDocument({ data: state.loaded.bytes.slice(0) }).promise;
+    state.numPages = state.pdfjsDoc.numPages;
+    navTotal.textContent = state.numPages;
   }
 
   function enableTools() {
     document.querySelectorAll('.tool-btn').forEach(b => b.disabled = false);
   }
+
+  // ---------- Coordinate helpers (viewport <-> PDF points) ----------
+  function toView(pdfX, pdfY) {
+    const [x, y] = state.viewport.convertToViewportPoint(pdfX, pdfY);
+    return { x, y };
+  }
+  function toPdf(viewX, viewY) {
+    const [x, y] = state.viewport.convertToPdfPoint(viewX, viewY);
+    return { x, y };
+  }
+  // Stage-relative coordinates from a pointer event
+  function stagePoint(e) {
+    const r = canvas.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
+  // ---------- Page rendering ----------
+  async function renderPage() {
+    if (!state.pdfjsDoc) return;
+    const idx = state.currentPage;
+    const page = await state.pdfjsDoc.getPage(idx + 1);
+    const rotation = ((page.rotate || 0) + (state.pageRotations[idx] || 0)) % 360;
+    const viewport = page.getViewport({ scale: state.scale, rotation });
+    state.viewport = viewport;
+
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = Math.floor(viewport.width * ratio);
+    canvas.height = Math.floor(viewport.height * ratio);
+    canvas.style.width = viewport.width + 'px';
+    canvas.style.height = viewport.height + 'px';
+    stage.style.width = viewport.width + 'px';
+    stage.style.height = viewport.height + 'px';
+
+    const transform = ratio !== 1 ? [ratio, 0, 0, ratio, 0, 0] : null;
+    await page.render({ canvasContext: ctx, viewport, transform }).promise;
+
+    renderOverlay();
+    if (state.currentTool === 'edittext') renderTextLayer(page);
+    else clearTextLayer();
+
+    navPage.value = idx + 1;
+    zoomLabel.textContent = Math.round(state.scale * 100) + '%';
+    highlightCurrentThumb();
+  }
+
+  // ---------- Annotation overlay ----------
+  function pageAnns() {
+    return state.annotations.filter(a => a.pageIndex === state.currentPage);
+  }
+
+  function annRect(a) {
+    // Screen rectangle from PDF corners — robust under page rotation.
+    const tl = toView(a.x, a.yTop);
+    const br = toView(a.x + a.w, a.yTop - a.h);
+    return {
+      left: Math.min(tl.x, br.x),
+      top: Math.min(tl.y, br.y),
+      width: Math.abs(br.x - tl.x),
+      height: Math.abs(br.y - tl.y)
+    };
+  }
+
+  function renderOverlay() {
+    annLayer.innerHTML = '';
+    pageAnns().forEach(a => annLayer.appendChild(buildAnnEl(a)));
+  }
+
+  function buildAnnEl(a) {
+    const el = document.createElement('div');
+    el.className = 'ann ann-' + a.type + (a.id === state.selectedAnnId ? ' selected' : '');
+    el.dataset.id = a.id;
+
+    if (a.type === 'text') {
+      const tl = toView(a.x, a.yTop);
+      el.style.left = tl.x + 'px';
+      el.style.top = tl.y + 'px';
+      el.style.color = a.color;
+      el.style.fontSize = (a.size * state.scale) + 'px';
+      if (a.bg) el.style.background = a.bg;
+
+      const edit = document.createElement('div');
+      edit.className = 'ann-text-edit';
+      edit.contentEditable = 'true';
+      edit.spellcheck = false;
+      edit.innerText = a.text;
+      edit.addEventListener('input', () => {
+        a.text = edit.innerText;
+        // keep PDF-space size in sync with rendered box
+        a.w = edit.offsetWidth / state.scale;
+        a.h = edit.offsetHeight / state.scale;
+      });
+      edit.addEventListener('focus', () => selectAnn(a.id, false));
+      edit.addEventListener('pointerdown', e => e.stopPropagation());
+      el.appendChild(edit);
+
+      addMoveHandle(el, a, () => toView(a.x, a.yTop), (vx, vy) => {
+        const p = toPdf(vx, vy); a.x = p.x; a.yTop = p.y;
+      });
+    } else {
+      const r = annRect(a);
+      el.style.left = r.left + 'px';
+      el.style.top = r.top + 'px';
+      el.style.width = r.width + 'px';
+      el.style.height = r.height + 'px';
+
+      if (a.type === 'signature') {
+        const img = document.createElement('img');
+        img.src = a.dataUrl;
+        img.draggable = false;
+        el.appendChild(img);
+      } else if (a.type === 'redact') {
+        el.title = 'Redaction (covers content visually)';
+      }
+
+      // whole-body drag
+      el.addEventListener('pointerdown', e => {
+        if (e.target.classList.contains('ann-resize')) return;
+        beginDrag(e, a, () => annRect(a), (left, top) => {
+          const p = toPdf(left, top);
+          a.x = p.x; a.yTop = p.y;
+        });
+      });
+      addResizeHandle(el, a);
+    }
+
+    el.addEventListener('pointerdown', () => selectAnn(a.id, false));
+    return el;
+  }
+
+  function addMoveHandle(el, a, getOrigin, setFromView) {
+    const h = document.createElement('div');
+    h.className = 'ann-move';
+    h.title = 'Drag to move';
+    h.addEventListener('pointerdown', e => {
+      e.stopPropagation();
+      const start = stagePoint(e);
+      const origin = getOrigin();
+      const offX = start.x - origin.x, offY = start.y - origin.y;
+      const move = ev => {
+        const p = stagePoint(ev);
+        setFromView(p.x - offX, p.y - offY);
+        const o = getOrigin();
+        el.style.left = o.x + 'px';
+        el.style.top = o.y + 'px';
+      };
+      const up = () => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    });
+    el.appendChild(h);
+  }
+
+  function beginDrag(e, a, getRect, apply) {
+    e.stopPropagation();
+    const start = stagePoint(e);
+    const r0 = getRect();
+    const offX = start.x - r0.left, offY = start.y - r0.top;
+    const el = annLayer.querySelector(`[data-id="${a.id}"]`);
+    const move = ev => {
+      const p = stagePoint(ev);
+      apply(p.x - offX, p.y - offY);
+      const r = getRect();
+      if (el) { el.style.left = r.left + 'px'; el.style.top = r.top + 'px'; }
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  }
+
+  function addResizeHandle(el, a) {
+    const h = document.createElement('div');
+    h.className = 'ann-resize';
+    h.title = 'Drag to resize';
+    h.addEventListener('pointerdown', e => {
+      e.stopPropagation();
+      const start = stagePoint(e);
+      const w0 = a.w, h0 = a.h;
+      const aspect = w0 / h0;
+      const move = ev => {
+        const p = stagePoint(ev);
+        let dw = (p.x - start.x) / state.scale;
+        a.w = Math.max(8, w0 + dw);
+        a.h = a.type === 'signature' ? a.w / aspect : Math.max(8, h0 + (p.y - start.y) / state.scale);
+        const r = annRect(a);
+        el.style.width = r.width + 'px';
+        el.style.height = r.height + 'px';
+        el.style.left = r.left + 'px';
+        el.style.top = r.top + 'px';
+      };
+      const up = () => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    });
+    el.appendChild(h);
+  }
+
+  function selectAnn(id, rerender = true) {
+    state.selectedAnnId = id;
+    if (rerender) renderOverlay();
+    else {
+      annLayer.querySelectorAll('.ann').forEach(n =>
+        n.classList.toggle('selected', n.dataset.id === id));
+    }
+    const a = state.annotations.find(x => x.id === id);
+    if (a) showInspector(a.type, a);
+  }
+
+  function deleteAnn(id) {
+    state.annotations = state.annotations.filter(a => a.id !== id);
+    if (state.selectedAnnId === id) state.selectedAnnId = null;
+    renderOverlay();
+    showInspector(state.currentTool);
+  }
+
+  document.addEventListener('keydown', e => {
+    if ((e.key === 'Delete' || e.key === 'Backspace') && state.selectedAnnId) {
+      const active = document.activeElement;
+      if (active && active.classList.contains('ann-text-edit')) return; // editing text
+      e.preventDefault();
+      deleteAnn(state.selectedAnnId);
+    }
+  });
+
+  // ---------- Stage interactions (place text / signature / redact) ----------
+  annLayer.addEventListener('pointerdown', e => {
+    if (e.target !== annLayer) return; // clicked empty space
+    const p = stagePoint(e);
+
+    if (state.currentTool === 'text') {
+      createText(p.x, p.y, { size: 16, color: '#111111' });
+    } else if (state.currentTool === 'sign') {
+      if (!state.pendingSignature) {
+        PDFUtils.setStatus('Create a signature first (draw or upload).', 'error');
+        return;
+      }
+      placeSignature(p.x, p.y);
+    } else if (state.currentTool === 'redact') {
+      startDrawRedact(e, p);
+    } else {
+      // select tool: clicking empty deselects
+      state.selectedAnnId = null;
+      renderOverlay();
+    }
+  });
+
+  function createText(viewX, viewY, opts) {
+    const p = toPdf(viewX, viewY);
+    const a = {
+      id: uid(), type: 'text', pageIndex: state.currentPage,
+      x: p.x, yTop: p.y, w: 140, h: (opts.size || 16) * 1.4,
+      text: '', size: opts.size || 16, color: opts.color || '#111111', bg: opts.bg || null
+    };
+    state.annotations.push(a);
+    selectAnn(a.id);
+    requestAnimationFrame(() => {
+      const node = annLayer.querySelector(`[data-id="${a.id}"] .ann-text-edit`);
+      if (node) node.focus();
+    });
+  }
+
+  function placeSignature(viewX, viewY) {
+    const sig = state.pendingSignature;
+    const p = toPdf(viewX, viewY);
+    const w = 160, h = w / sig.aspect;
+    const a = {
+      id: uid(), type: 'signature', pageIndex: state.currentPage,
+      x: p.x, yTop: p.y, w, h,
+      imageBytes: sig.imageBytes, mime: sig.mime, dataUrl: sig.dataUrl
+    };
+    state.annotations.push(a);
+    selectAnn(a.id);
+  }
+
+  function startDrawRedact(e, startPt) {
+    const ghost = document.createElement('div');
+    ghost.className = 'ann ann-redact';
+    ghost.style.left = startPt.x + 'px';
+    ghost.style.top = startPt.y + 'px';
+    annLayer.appendChild(ghost);
+    const move = ev => {
+      const p = stagePoint(ev);
+      ghost.style.left = Math.min(p.x, startPt.x) + 'px';
+      ghost.style.top = Math.min(p.y, startPt.y) + 'px';
+      ghost.style.width = Math.abs(p.x - startPt.x) + 'px';
+      ghost.style.height = Math.abs(p.y - startPt.y) + 'px';
+    };
+    const up = ev => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      const p = stagePoint(ev);
+      const left = Math.min(p.x, startPt.x), top = Math.min(p.y, startPt.y);
+      const wPx = Math.abs(p.x - startPt.x), hPx = Math.abs(p.y - startPt.y);
+      ghost.remove();
+      if (wPx < 6 || hPx < 6) { renderOverlay(); return; }
+      const tl = toPdf(left, top);
+      const a = {
+        id: uid(), type: 'redact', pageIndex: state.currentPage,
+        x: tl.x, yTop: tl.y, w: wPx / state.scale, h: hPx / state.scale
+      };
+      state.annotations.push(a);
+      selectAnn(a.id);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  }
+
+  // ---------- Edit-existing-text layer ----------
+  async function renderTextLayer(page) {
+    textLayer.innerHTML = '';
+    textLayer.style.display = 'block';
+    let content;
+    try { content = await page.getTextContent(); }
+    catch { return; }
+    for (const item of content.items) {
+      if (!item.str || !item.str.trim()) continue;
+      const tr = item.transform; // [a,b,c,d,e,f] in PDF user space
+      const size = Math.hypot(tr[2], tr[3]) || tr[3] || 12;
+      const ascent = size * 0.8;
+      const topLeft = toView(tr[4], tr[5] + ascent);
+      const box = document.createElement('div');
+      box.className = 'text-run';
+      box.style.left = topLeft.x + 'px';
+      box.style.top = topLeft.y + 'px';
+      box.style.width = (item.width * state.scale) + 'px';
+      box.style.height = (size * 1.2 * state.scale) + 'px';
+      box.title = 'Click to edit this text';
+      box.addEventListener('pointerdown', e => {
+        e.stopPropagation();
+        editExistingRun(item, size);
+        box.style.display = 'none';
+      });
+      textLayer.appendChild(box);
+    }
+  }
+
+  function editExistingRun(item, size) {
+    const tr = item.transform;
+    const ascent = size * 0.8;
+    const a = {
+      id: uid(), type: 'text', pageIndex: state.currentPage,
+      x: tr[4], yTop: tr[5] + ascent,
+      w: item.width, h: size * 1.25,
+      text: item.str, size: Math.round(size),
+      color: '#111111', bg: '#ffffff'   // white cover hides the original glyphs
+    };
+    state.annotations.push(a);
+    selectAnn(a.id);
+    requestAnimationFrame(() => {
+      const node = annLayer.querySelector(`[data-id="${a.id}"] .ann-text-edit`);
+      if (node) {
+        node.focus();
+        const sel = window.getSelection(); const range = document.createRange();
+        range.selectNodeContents(node); sel.removeAllRanges(); sel.addRange(range);
+      }
+    });
+  }
+
+  function clearTextLayer() {
+    textLayer.innerHTML = '';
+    textLayer.style.display = 'none';
+  }
+
+  // ---------- Thumbnail rail ----------
+  async function renderThumbs() {
+    pagesRail.innerHTML = '';
+    const thumbs = await PDFEngine.renderThumbnails(state.loaded, { scale: 0.2 });
+    thumbs.forEach(t => {
+      const item = document.createElement('div');
+      item.className = 'pg-thumb';
+      item.dataset.page = t.pageIndex;
+      item.innerHTML = `<img src="${t.dataUrl}" alt="Page ${t.pageIndex + 1}" /><span class="pg-num">${t.pageIndex + 1}</span>`;
+      item.addEventListener('click', () => {
+        if (PAGE_OP_TOOLS.includes(state.currentTool)) {
+          togglePageSelect(t.pageIndex);
+        } else {
+          state.currentPage = t.pageIndex;
+          state.selectedAnnId = null;
+          renderPage();
+        }
+      });
+      pagesRail.appendChild(item);
+    });
+    highlightCurrentThumb();
+  }
+
+  function highlightCurrentThumb() {
+    pagesRail.querySelectorAll('.pg-thumb').forEach(n => {
+      const idx = Number(n.dataset.page);
+      n.classList.toggle('current', idx === state.currentPage);
+      n.classList.toggle('selected', state.selectedPages.has(idx));
+    });
+  }
+
+  function togglePageSelect(idx) {
+    if (state.selectedPages.has(idx)) state.selectedPages.delete(idx);
+    else state.selectedPages.add(idx);
+    highlightCurrentThumb();
+    if (PAGE_OP_TOOLS.includes(state.currentTool)) showInspector(state.currentTool);
+  }
+
+  // ---------- Navigation & zoom ----------
+  $('#nav-prev').onclick = () => { if (state.currentPage > 0) { state.currentPage--; state.selectedAnnId = null; renderPage(); } };
+  $('#nav-next').onclick = () => { if (state.currentPage < state.numPages - 1) { state.currentPage++; state.selectedAnnId = null; renderPage(); } };
+  navPage.onchange = () => {
+    const n = Math.max(1, Math.min(state.numPages, Number(navPage.value) || 1));
+    state.currentPage = n - 1; state.selectedAnnId = null; renderPage();
+  };
+  $('#zoom-in').onclick = () => { state.scale = Math.min(4, state.scale + 0.25); renderPage(); };
+  $('#zoom-out').onclick = () => { state.scale = Math.max(0.25, state.scale - 0.25); renderPage(); };
+  $('#zoom-fit').onclick = async () => {
+    if (!state.pdfjsDoc) return;
+    const page = await state.pdfjsDoc.getPage(state.currentPage + 1);
+    const vp = page.getViewport({ scale: 1 });
+    const avail = $('#viewer-scroll').clientWidth - 64;
+    state.scale = Math.max(0.25, Math.min(4, avail / vp.width));
+    renderPage();
+  };
 
   // ---------- Tool switching ----------
   document.querySelectorAll('.tool-btn').forEach(btn => {
@@ -123,28 +540,41 @@
       if (tool === 'open') { fileInput.click(); return; }
       if (tool === 'add') { addInput.click(); return; }
       if (!state.loaded) return;
-      document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      state.currentTool = tool;
-      showInspector(tool);
+      setTool(tool);
     });
   });
 
-  // ---------- Add file (merge) ----------
+  function setTool(tool) {
+    state.currentTool = tool;
+    document.querySelectorAll('.tool-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.tool === tool));
+    stage.dataset.tool = tool;
+    if (!PAGE_OP_TOOLS.includes(tool)) { state.selectedPages.clear(); highlightCurrentThumb(); }
+    if (state.pdfjsDoc) {
+      if (tool === 'edittext') state.pdfjsDoc.getPage(state.currentPage + 1).then(renderTextLayer);
+      else clearTextLayer();
+    }
+    showInspector(tool);
+  }
+
+  // ---------- Merge ----------
   addInput.addEventListener('change', async e => {
     const file = e.target.files?.[0];
     if (!file) return;
     PDFUtils.setStatus('Merging…');
     try {
+      const baked = await currentLoaded();          // bake current edits first
       const additional = await PDFEngine.loadPdf(file);
-      const merged = await PDFEngine.merge([state.loaded, additional]);
-      // Re-load merged result as new state
+      const merged = await PDFEngine.merge([baked, additional]);
       state.loaded = await PDFEngine.loadPdf(new File([merged], state.loaded.name, { type: 'application/pdf' }));
+      state.annotations = [];
       state.pageRotations = {};
       state.selectedPages.clear();
-      await renderThumbnails();
-      currentFile.querySelector('span:last-child').textContent =
-        `${PDFUtils.formatBytes(state.loaded.size)} · ${state.thumbs.length} pages`;
+      state.selectedAnnId = null;
+      await openPdfjs();
+      vtFile.textContent = `${state.loaded.name} · ${PDFUtils.formatBytes(state.loaded.size)}`;
+      await renderThumbs();
+      await renderPage();
       PDFUtils.setStatus(`Added ${file.name}.`, 'success');
     } catch (err) {
       console.error(err);
@@ -153,293 +583,265 @@
     addInput.value = '';
   });
 
-  // ---------- Inspector renderers ----------
-  function showInspector(tool) {
+  // ---------- Bake helpers ----------
+  async function currentBytes() {
+    return PDFEngine.applyAnnotations(state.loaded, state.annotations, state.pageRotations);
+  }
+  async function currentLoaded() {
+    const bytes = await currentBytes();
+    const doc = await PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true });
+    return { doc, bytes, name: state.loaded.name, size: bytes.length };
+  }
+
+  // ---------- Inspector ----------
+  function showInspector(tool, ann) {
     inspectorBody.innerHTML = '';
 
-    if (tool === 'idle') {
-      inspectorTitle.textContent = 'Ready to edit';
-      inspectorHint.textContent = 'Pick a tool on the left, or click pages to select them.';
+    if (ann && ann.type === 'text') return inspText(ann);
+    if (ann && ann.type === 'signature') return inspSelectedBox(ann, 'Signature', 'Drag to move, drag the corner to resize.');
+    if (ann && ann.type === 'redact') return inspSelectedBox(ann, 'Redaction', 'Covers the content with an opaque box. Note: the underlying text is hidden, not deleted from the file.');
+
+    if (tool === 'select') {
+      inspectorTitle.textContent = 'Select / Move';
+      inspectorHint.textContent = 'Click any text, signature or redaction on the page to move, resize or delete it.';
       return;
     }
-
-    if (tool === 'rotate') {
-      inspectorTitle.textContent = 'Rotate pages';
-      inspectorHint.textContent = state.selectedPages.size
-        ? `${state.selectedPages.size} page(s) selected.`
-        : 'Click pages to select, or rotate all pages.';
-      inspectorBody.innerHTML = `
-        <div class="field-row">
-          <button class="btn btn-ghost" id="rot-left" type="button">↺ 90° left</button>
-          <button class="btn btn-ghost" id="rot-right" type="button">↻ 90° right</button>
-        </div>
-        <button class="btn btn-ghost btn-block" id="rot-180" type="button" style="margin-top:8px;">180°</button>
-        <div class="inspector-divider"></div>
-        <button class="btn btn-primary btn-block" id="rot-apply" type="button">Apply rotation</button>
-      `;
-      const setRot = deg => {
-        const targets = state.selectedPages.size
-          ? Array.from(state.selectedPages)
-          : state.thumbs.map(t => t.pageIndex);
-        targets.forEach(i => {
-          const cur = state.pageRotations[i] || 0;
-          state.pageRotations[i] = (cur + deg + 360) % 360;
-        });
-        drawGrid();
-      };
-      $('#rot-left').onclick = () => setRot(-90);
-      $('#rot-right').onclick = () => setRot(90);
-      $('#rot-180').onclick = () => setRot(180);
-      $('#rot-apply').onclick = async () => {
-        PDFUtils.setStatus('Rotating…');
-        try {
-          const out = await PDFEngine.rotate(state.loaded, state.pageRotations);
-          PDFUtils.download(new Blob([out], { type: 'application/pdf' }),
-            `${PDFEngine.stripExt(state.loaded.name)}_rotated.pdf`);
-          PDFUtils.setStatus('Rotated PDF downloaded.', 'success');
-        } catch (e) { PDFUtils.setStatus('Rotation failed.', 'error'); }
-      };
-      return;
-    }
-
-    if (tool === 'split') {
-      inspectorTitle.textContent = 'Split / Extract';
-      inspectorHint.textContent = state.selectedPages.size
-        ? `Will extract ${state.selectedPages.size} selected page(s).`
-        : 'Click pages to select, or enter a range below.';
-      inspectorBody.innerHTML = `
-        <div class="field">
-          <label>Page range (e.g. 1-3, 5, 7-9)</label>
-          <input type="text" id="split-range" placeholder="leave blank to use selection" />
-        </div>
-        <button class="btn btn-primary btn-block" id="split-extract" type="button">Extract pages</button>
-        <div class="inspector-divider"></div>
-        <button class="btn btn-ghost btn-block" id="split-each" type="button">Split into single pages</button>
-      `;
-      $('#split-extract').onclick = async () => {
-        const rangeText = $('#split-range').value.trim();
-        let pages;
-        if (rangeText) {
-          pages = parseRange(rangeText, state.thumbs.length);
-          if (!pages.length) { PDFUtils.setStatus('Invalid range.', 'error'); return; }
-        } else if (state.selectedPages.size) {
-          pages = Array.from(state.selectedPages).sort((a, b) => a - b);
-        } else {
-          PDFUtils.setStatus('Select pages or enter a range.', 'error'); return;
-        }
-        PDFUtils.setStatus('Extracting…');
-        try {
-          const [result] = await PDFEngine.split(state.loaded, [pages]);
-          PDFUtils.download(new Blob([result.bytes], { type: 'application/pdf' }), result.name);
-          PDFUtils.setStatus('Pages extracted.', 'success');
-        } catch (e) { PDFUtils.setStatus('Extraction failed.', 'error'); }
-      };
-      $('#split-each').onclick = async () => {
-        PDFUtils.setStatus('Splitting…');
-        try {
-          const ranges = state.thumbs.map(t => [t.pageIndex]);
-          const results = await PDFEngine.split(state.loaded, ranges);
-          for (const r of results) {
-            PDFUtils.download(new Blob([r.bytes], { type: 'application/pdf' }), r.name);
-            await new Promise(r => setTimeout(r, 120));
-          }
-          PDFUtils.setStatus(`${results.length} files downloaded.`, 'success');
-        } catch (e) { PDFUtils.setStatus('Split failed.', 'error'); }
-      };
-      return;
-    }
-
-    if (tool === 'delete') {
-      inspectorTitle.textContent = 'Delete pages';
-      inspectorHint.textContent = state.selectedPages.size
-        ? `${state.selectedPages.size} page(s) will be removed.`
-        : 'Click pages on the left to select which to delete.';
-      inspectorBody.innerHTML = `
-        <button class="btn btn-primary btn-block" id="del-apply" type="button" ${!state.selectedPages.size ? 'disabled style="opacity:0.5"' : ''}>
-          Delete selected & download
-        </button>
-      `;
-      const btn = $('#del-apply');
-      if (btn) btn.onclick = async () => {
-        const keep = state.thumbs
-          .map(t => t.pageIndex)
-          .filter(i => !state.selectedPages.has(i));
-        if (!keep.length) { PDFUtils.setStatus('You must keep at least one page.', 'error'); return; }
-        PDFUtils.setStatus('Removing pages…');
-        try {
-          const [result] = await PDFEngine.split(state.loaded, [keep]);
-          PDFUtils.download(new Blob([result.bytes], { type: 'application/pdf' }),
-            `${PDFEngine.stripExt(state.loaded.name)}_edited.pdf`);
-          PDFUtils.setStatus('Done.', 'success');
-        } catch (e) { PDFUtils.setStatus('Delete failed.', 'error'); }
-      };
-      return;
-    }
-
-    if (tool === 'annotate') {
+    if (tool === 'text') {
       inspectorTitle.textContent = 'Add text';
-      inspectorHint.textContent = 'Adds text to the first selected page (or page 1).';
-      inspectorBody.innerHTML = `
-        <div class="field">
-          <label>Text</label>
-          <textarea id="ann-text" rows="2" placeholder="Type the text to add…"></textarea>
-        </div>
-        <div class="field-row">
-          <div class="field"><label>X (pt from left)</label><input type="number" id="ann-x" value="50" /></div>
-          <div class="field"><label>Y (pt from bottom)</label><input type="number" id="ann-y" value="700" /></div>
-        </div>
-        <div class="field-row">
-          <div class="field"><label>Size</label><input type="number" id="ann-size" value="14" /></div>
-          <div class="field"><label>Color</label><input type="color" id="ann-color" value="#000000" /></div>
-        </div>
-        <button class="btn btn-primary btn-block" id="ann-apply" type="button">Add text & download</button>
-      `;
-      $('#ann-apply').onclick = async () => {
-        const text = $('#ann-text').value.trim();
-        if (!text) { PDFUtils.setStatus('Enter some text first.', 'error'); return; }
-        const pageIndex = state.selectedPages.size ? Math.min(...state.selectedPages) : 0;
-        const hex = $('#ann-color').value;
-        const color = { r: parseInt(hex.slice(1,3),16)/255, g: parseInt(hex.slice(3,5),16)/255, b: parseInt(hex.slice(5,7),16)/255 };
-        PDFUtils.setStatus('Adding text…');
-        try {
-          const out = await PDFEngine.addTextOverlay(state.loaded, [{
-            pageIndex, text,
-            x: Number($('#ann-x').value), y: Number($('#ann-y').value),
-            size: Number($('#ann-size').value), color
-          }]);
-          PDFUtils.download(new Blob([out], { type: 'application/pdf' }),
-            `${PDFEngine.stripExt(state.loaded.name)}_annotated.pdf`);
-          PDFUtils.setStatus('Annotated PDF downloaded.', 'success');
-        } catch (e) { PDFUtils.setStatus('Could not add text.', 'error'); }
-      };
+      inspectorHint.textContent = 'Click anywhere on the page to drop a text box, then type. Drag the grip to move it.';
       return;
     }
+    if (tool === 'edittext') {
+      inspectorTitle.textContent = 'Edit existing text';
+      inspectorHint.textContent = 'Highlighted boxes mark editable text. Click one to change the words, or clear it to remove. Originals are covered with white.';
+      return;
+    }
+    if (tool === 'sign') return inspSign();
+    if (tool === 'redact') {
+      inspectorTitle.textContent = 'Redact';
+      inspectorHint.textContent = 'Drag a rectangle over anything you want to black out. Covers content visually — underlying text stays in the file but hidden.';
+      return;
+    }
+    if (tool === 'rotate') return inspRotate();
+    if (tool === 'split') return inspSplit();
+    if (tool === 'delete') return inspDelete();
+    if (tool === 'compress') return inspCompress();
+    if (tool === 'toimage') return inspToImage();
+    if (tool === 'download') return inspDownload();
+  }
 
-    if (tool === 'sign') {
-      inspectorTitle.textContent = 'Sign PDF';
-      inspectorHint.textContent = 'Draw your signature, choose a position, and apply.';
-      inspectorBody.innerHTML = `
-        <div class="field">
-          <label>Draw signature</label>
-          <canvas id="sig-pad" class="sig-pad"></canvas>
-          <div class="field-row" style="margin-top:6px;">
-            <button class="btn btn-ghost" id="sig-clear" type="button" style="padding:6px 12px;font-size:13px;">Clear</button>
-            <button class="btn btn-ghost" id="sig-upload-btn" type="button" style="padding:6px 12px;font-size:13px;">Upload image</button>
-          </div>
-        </div>
-        <div class="field-row">
-          <div class="field"><label>X</label><input type="number" id="sig-x" value="80" /></div>
-          <div class="field"><label>Y</label><input type="number" id="sig-y" value="100" /></div>
-        </div>
-        <div class="field-row">
-          <div class="field"><label>Width</label><input type="number" id="sig-w" value="150" /></div>
-          <div class="field"><label>Height</label><input type="number" id="sig-h" value="50" /></div>
-        </div>
-        <button class="btn btn-primary btn-block" id="sig-apply" type="button">Sign & download</button>
-      `;
-      setupSigPad();
-      $('#sig-clear').onclick = () => clearSig();
-      $('#sig-upload-btn').onclick = () => sigInput.click();
-      $('#sig-apply').onclick = applySig;
-      return;
-    }
+  function inspText(a) {
+    inspectorTitle.textContent = a.bg ? 'Edit text' : 'Text';
+    inspectorHint.textContent = 'Type to edit. Drag the grip to move.';
+    inspectorBody.innerHTML = `
+      <div class="field-row">
+        <div class="field"><label>Size</label><input type="number" id="t-size" value="${a.size}" min="4" max="120" /></div>
+        <div class="field"><label>Color</label><input type="color" id="t-color" value="${a.color}" /></div>
+      </div>
+      <label class="check"><input type="checkbox" id="t-bg" ${a.bg ? 'checked' : ''} /> White background (hide content underneath)</label>
+      <button class="btn btn-ghost btn-block" id="t-del" type="button" style="margin-top:12px;">Delete text</button>
+    `;
+    $('#t-size').oninput = () => { a.size = Number($('#t-size').value) || a.size; renderOverlay(); reselect(a.id); };
+    $('#t-color').oninput = () => { a.color = $('#t-color').value; renderOverlay(); reselect(a.id); };
+    $('#t-bg').onchange = () => { a.bg = $('#t-bg').checked ? '#ffffff' : null; renderOverlay(); reselect(a.id); };
+    $('#t-del').onclick = () => deleteAnn(a.id);
+  }
 
-    if (tool === 'compress') {
-      inspectorTitle.textContent = 'Compress PDF';
-      inspectorHint.textContent = 'Re-encode pages to reduce file size. Trade quality for size.';
-      inspectorBody.innerHTML = `
-        <div class="field">
-          <label>Compression level</label>
-          <select id="comp-level">
-            <option value="low">Low — best quality (~30% smaller)</option>
-            <option value="medium" selected>Medium — balanced (~50% smaller)</option>
-            <option value="high">High — smallest size</option>
-          </select>
-        </div>
-        <button class="btn btn-primary btn-block" id="comp-apply" type="button">Compress & download</button>
-      `;
-      $('#comp-apply').onclick = async () => {
-        const level = $('#comp-level').value;
-        const presets = {
-          low:    { quality: 0.85, dpi: 150 },
-          medium: { quality: 0.7,  dpi: 120 },
-          high:   { quality: 0.5,  dpi: 96 }
-        };
-        PDFUtils.setStatus('Compressing… this may take a moment.');
-        try {
-          const out = await PDFEngine.compress(state.loaded, presets[level]);
-          const saved = ((1 - out.length / state.loaded.size) * 100).toFixed(0);
-          PDFUtils.download(new Blob([out], { type: 'application/pdf' }),
-            `${PDFEngine.stripExt(state.loaded.name)}_compressed.pdf`);
-          PDFUtils.setStatus(saved > 0 ? `Done — ${saved}% smaller.` : 'Done — file was already optimized.', 'success');
-        } catch (e) { console.error(e); PDFUtils.setStatus('Compression failed.', 'error'); }
-      };
-      return;
-    }
+  function reselect(id) {
+    annLayer.querySelectorAll('.ann').forEach(n => n.classList.toggle('selected', n.dataset.id === id));
+  }
 
-    if (tool === 'toimage') {
-      inspectorTitle.textContent = 'Export as images';
-      inspectorHint.textContent = 'Each page becomes a separate image file.';
-      inspectorBody.innerHTML = `
-        <div class="field">
-          <label>Format</label>
-          <select id="img-format">
-            <option value="png" selected>PNG (lossless)</option>
-            <option value="jpeg">JPG (smaller files)</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Resolution</label>
-          <select id="img-dpi">
-            <option value="96">Screen (96 DPI)</option>
-            <option value="150" selected>Standard (150 DPI)</option>
-            <option value="300">Print (300 DPI)</option>
-          </select>
-        </div>
-        <button class="btn btn-primary btn-block" id="img-apply" type="button">Export images</button>
-      `;
-      $('#img-apply').onclick = async () => {
-        PDFUtils.setStatus('Rendering pages…');
-        try {
-          const results = await PDFEngine.toImages(state.loaded, {
-            format: $('#img-format').value,
-            dpi: Number($('#img-dpi').value)
-          });
-          for (const r of results) {
-            PDFUtils.download(r.blob, r.name);
-            await new Promise(r => setTimeout(r, 120));
-          }
-          PDFUtils.setStatus(`${results.length} images downloaded.`, 'success');
-        } catch (e) { console.error(e); PDFUtils.setStatus('Export failed.', 'error'); }
-      };
-      return;
-    }
+  function inspSelectedBox(a, title, hint) {
+    inspectorTitle.textContent = title;
+    inspectorHint.textContent = hint;
+    inspectorBody.innerHTML = `<button class="btn btn-ghost btn-block" id="b-del" type="button">Delete</button>`;
+    $('#b-del').onclick = () => deleteAnn(a.id);
+  }
 
-    if (tool === 'download') {
-      inspectorTitle.textContent = 'Download current PDF';
-      inspectorHint.textContent = 'Downloads the PDF in its current state (with any pending rotations applied).';
-      inspectorBody.innerHTML = `<button class="btn btn-primary btn-block" id="dl-apply" type="button">Download PDF</button>`;
-      $('#dl-apply').onclick = async () => {
-        PDFUtils.setStatus('Preparing…');
-        try {
-          let bytes = state.loaded.bytes;
-          if (Object.keys(state.pageRotations).length) {
-            bytes = await PDFEngine.rotate(state.loaded, state.pageRotations);
-          }
-          PDFUtils.download(new Blob([bytes], { type: 'application/pdf' }),
-            `${PDFEngine.stripExt(state.loaded.name)}_edited.pdf`);
-          PDFUtils.setStatus('Downloaded.', 'success');
-        } catch (e) { PDFUtils.setStatus('Download failed.', 'error'); }
-      };
-      return;
-    }
+  function inspSign() {
+    inspectorTitle.textContent = 'Signature';
+    inspectorHint.textContent = state.pendingSignature
+      ? 'Click on the page to place your signature. Drag to move, drag the corner to resize.'
+      : 'Draw or upload your signature, then click on the page to place it.';
+    inspectorBody.innerHTML = `
+      <div class="field">
+        <label>Draw signature</label>
+        <canvas id="sig-pad" class="sig-pad"></canvas>
+        <div class="field-row" style="margin-top:6px;">
+          <button class="btn btn-ghost" id="sig-clear" type="button" style="padding:6px 12px;font-size:13px;">Clear</button>
+          <button class="btn btn-ghost" id="sig-upload-btn" type="button" style="padding:6px 12px;font-size:13px;">Upload image</button>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-block" id="sig-use" type="button">Use this signature</button>
+      ${state.pendingSignature ? '<p class="hint" style="margin-top:10px;color:var(--accent)">✓ Ready — click on the page to place it.</p>' : ''}
+    `;
+    setupSigPad();
+    $('#sig-clear').onclick = clearSig;
+    $('#sig-upload-btn').onclick = () => sigInput.click();
+    $('#sig-use').onclick = useSignature;
+  }
+
+  function inspRotate() {
+    inspectorTitle.textContent = 'Rotate pages';
+    inspectorHint.textContent = state.selectedPages.size
+      ? `${state.selectedPages.size} page(s) selected in the rail.`
+      : 'Rotates the current page. Select pages in the rail to rotate several.';
+    inspectorBody.innerHTML = `
+      <div class="field-row">
+        <button class="btn btn-ghost" id="rot-left" type="button">↺ 90° left</button>
+        <button class="btn btn-ghost" id="rot-right" type="button">↻ 90° right</button>
+      </div>
+      <button class="btn btn-ghost btn-block" id="rot-180" type="button" style="margin-top:8px;">180°</button>
+      <p class="hint" style="margin-top:10px;">Rotation shows live and is included when you download.</p>
+    `;
+    const setRot = deg => {
+      const targets = state.selectedPages.size ? Array.from(state.selectedPages) : [state.currentPage];
+      targets.forEach(i => {
+        state.pageRotations[i] = (((state.pageRotations[i] || 0) + deg) % 360 + 360) % 360;
+      });
+      renderPage();
+    };
+    $('#rot-left').onclick = () => setRot(-90);
+    $('#rot-right').onclick = () => setRot(90);
+    $('#rot-180').onclick = () => setRot(180);
+  }
+
+  function inspSplit() {
+    inspectorTitle.textContent = 'Split / Extract';
+    inspectorHint.textContent = state.selectedPages.size
+      ? `Will extract ${state.selectedPages.size} selected page(s).`
+      : 'Select pages in the rail, or enter a range below.';
+    inspectorBody.innerHTML = `
+      <div class="field">
+        <label>Page range (e.g. 1-3, 5, 7-9)</label>
+        <input type="text" id="split-range" placeholder="leave blank to use selection" />
+      </div>
+      <button class="btn btn-primary btn-block" id="split-extract" type="button">Extract pages</button>
+      <div class="inspector-divider"></div>
+      <button class="btn btn-ghost btn-block" id="split-each" type="button">Split into single pages</button>
+    `;
+    $('#split-extract').onclick = async () => {
+      const rangeText = $('#split-range').value.trim();
+      let pages;
+      if (rangeText) {
+        pages = parseRange(rangeText, state.numPages);
+        if (!pages.length) { PDFUtils.setStatus('Invalid range.', 'error'); return; }
+      } else if (state.selectedPages.size) {
+        pages = Array.from(state.selectedPages).sort((a, b) => a - b);
+      } else { PDFUtils.setStatus('Select pages or enter a range.', 'error'); return; }
+      PDFUtils.setStatus('Extracting…');
+      try {
+        const src = await currentLoaded();
+        const [result] = await PDFEngine.split(src, [pages]);
+        PDFUtils.download(new Blob([result.bytes], { type: 'application/pdf' }), result.name);
+        PDFUtils.setStatus('Pages extracted.', 'success');
+      } catch (e) { console.error(e); PDFUtils.setStatus('Extraction failed.', 'error'); }
+    };
+    $('#split-each').onclick = async () => {
+      PDFUtils.setStatus('Splitting…');
+      try {
+        const src = await currentLoaded();
+        const ranges = Array.from({ length: state.numPages }, (_, i) => [i]);
+        const results = await PDFEngine.split(src, ranges);
+        for (const r of results) { PDFUtils.download(new Blob([r.bytes], { type: 'application/pdf' }), r.name); await wait(120); }
+        PDFUtils.setStatus(`${results.length} files downloaded.`, 'success');
+      } catch (e) { console.error(e); PDFUtils.setStatus('Split failed.', 'error'); }
+    };
+  }
+
+  function inspDelete() {
+    inspectorTitle.textContent = 'Delete pages';
+    inspectorHint.textContent = state.selectedPages.size
+      ? `${state.selectedPages.size} page(s) will be removed.`
+      : 'Select pages in the rail to delete.';
+    inspectorBody.innerHTML = `
+      <button class="btn btn-primary btn-block" id="del-apply" type="button" ${!state.selectedPages.size ? 'disabled style="opacity:.5"' : ''}>Delete selected & download</button>
+    `;
+    const btn = $('#del-apply');
+    if (btn) btn.onclick = async () => {
+      const keep = Array.from({ length: state.numPages }, (_, i) => i).filter(i => !state.selectedPages.has(i));
+      if (!keep.length) { PDFUtils.setStatus('You must keep at least one page.', 'error'); return; }
+      PDFUtils.setStatus('Removing pages…');
+      try {
+        const src = await currentLoaded();
+        const [result] = await PDFEngine.split(src, [keep]);
+        PDFUtils.download(new Blob([result.bytes], { type: 'application/pdf' }), `${PDFEngine.stripExt(state.loaded.name)}_edited.pdf`);
+        PDFUtils.setStatus('Done.', 'success');
+      } catch (e) { console.error(e); PDFUtils.setStatus('Delete failed.', 'error'); }
+    };
+  }
+
+  function inspCompress() {
+    inspectorTitle.textContent = 'Compress PDF';
+    inspectorHint.textContent = 'Re-encode pages to reduce file size. Your edits are included.';
+    inspectorBody.innerHTML = `
+      <div class="field">
+        <label>Compression level</label>
+        <select id="comp-level">
+          <option value="low">Low — best quality (~30% smaller)</option>
+          <option value="medium" selected>Medium — balanced (~50% smaller)</option>
+          <option value="high">High — smallest size</option>
+        </select>
+      </div>
+      <button class="btn btn-primary btn-block" id="comp-apply" type="button">Compress & download</button>
+    `;
+    $('#comp-apply').onclick = async () => {
+      const presets = { low: { quality: 0.85, dpi: 150 }, medium: { quality: 0.7, dpi: 120 }, high: { quality: 0.5, dpi: 96 } };
+      PDFUtils.setStatus('Compressing… this may take a moment.');
+      try {
+        const src = await currentLoaded();
+        const out = await PDFEngine.compress(src, presets[$('#comp-level').value]);
+        const saved = ((1 - out.length / src.size) * 100).toFixed(0);
+        PDFUtils.download(new Blob([out], { type: 'application/pdf' }), `${PDFEngine.stripExt(state.loaded.name)}_compressed.pdf`);
+        PDFUtils.setStatus(saved > 0 ? `Done — ${saved}% smaller.` : 'Done — file was already optimized.', 'success');
+      } catch (e) { console.error(e); PDFUtils.setStatus('Compression failed.', 'error'); }
+    };
+  }
+
+  function inspToImage() {
+    inspectorTitle.textContent = 'Export as images';
+    inspectorHint.textContent = 'Each page becomes an image. Your edits are included.';
+    inspectorBody.innerHTML = `
+      <div class="field"><label>Format</label>
+        <select id="img-format"><option value="png" selected>PNG (lossless)</option><option value="jpeg">JPG (smaller files)</option></select>
+      </div>
+      <div class="field"><label>Resolution</label>
+        <select id="img-dpi"><option value="96">Screen (96 DPI)</option><option value="150" selected>Standard (150 DPI)</option><option value="300">Print (300 DPI)</option></select>
+      </div>
+      <button class="btn btn-primary btn-block" id="img-apply" type="button">Export images</button>
+    `;
+    $('#img-apply').onclick = async () => {
+      PDFUtils.setStatus('Rendering pages…');
+      try {
+        const src = await currentLoaded();
+        const results = await PDFEngine.toImages(src, { format: $('#img-format').value, dpi: Number($('#img-dpi').value) });
+        for (const r of results) { PDFUtils.download(r.blob, r.name); await wait(120); }
+        PDFUtils.setStatus(`${results.length} images downloaded.`, 'success');
+      } catch (e) { console.error(e); PDFUtils.setStatus('Export failed.', 'error'); }
+    };
+  }
+
+  function inspDownload() {
+    const count = state.annotations.length;
+    inspectorTitle.textContent = 'Download PDF';
+    inspectorHint.textContent = count
+      ? `Bakes ${count} edit(s) and any rotations into a new PDF.`
+      : 'Downloads the PDF with any rotations applied.';
+    inspectorBody.innerHTML = `<button class="btn btn-primary btn-block" id="dl-apply" type="button">Download edited PDF</button>`;
+    $('#dl-apply').onclick = async () => {
+      PDFUtils.setStatus('Preparing…');
+      try {
+        const bytes = await currentBytes();
+        PDFUtils.download(new Blob([bytes], { type: 'application/pdf' }), `${PDFEngine.stripExt(state.loaded.name)}_edited.pdf`);
+        PDFUtils.setStatus('Downloaded.', 'success');
+      } catch (e) { console.error(e); PDFUtils.setStatus('Download failed.', 'error'); }
+    };
   }
 
   // ---------- Range parsing ----------
   function parseRange(str, max) {
     const out = new Set();
-    const parts = str.split(/[,\s]+/).filter(Boolean);
-    for (const p of parts) {
+    for (const p of str.split(/[,\s]+/).filter(Boolean)) {
       const m = p.match(/^(\d+)(?:-(\d+))?$/);
       if (!m) return [];
       const start = Math.max(1, Math.min(max, Number(m[1])));
@@ -450,83 +852,61 @@
     return Array.from(out).sort((a, b) => a - b);
   }
 
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+
   // ---------- Signature pad ----------
   let sigCtx, sigDrawing = false, sigHasInk = false, sigImage = null;
   function setupSigPad() {
     const pad = $('#sig-pad');
+    if (!pad) return;
     pad.width = pad.offsetWidth * (window.devicePixelRatio || 1);
     pad.height = pad.offsetHeight * (window.devicePixelRatio || 1);
     sigCtx = pad.getContext('2d');
     sigCtx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
-    sigCtx.lineWidth = 2.2;
-    sigCtx.lineCap = 'round';
-    sigCtx.lineJoin = 'round';
-    sigCtx.strokeStyle = '#000';
-    sigHasInk = false;
-    sigImage = null;
-
-    function pos(e) {
+    sigCtx.lineWidth = 2.2; sigCtx.lineCap = 'round'; sigCtx.lineJoin = 'round'; sigCtx.strokeStyle = '#000';
+    sigHasInk = false; sigImage = null;
+    const pos = e => {
       const r = pad.getBoundingClientRect();
-      const x = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
-      const y = (e.touches ? e.touches[0].clientY : e.clientY) - r.top;
-      return { x, y };
-    }
-    pad.addEventListener('pointerdown', e => {
-      sigDrawing = true; sigHasInk = true;
-      const p = pos(e);
-      sigCtx.beginPath();
-      sigCtx.moveTo(p.x, p.y);
-    });
-    pad.addEventListener('pointermove', e => {
-      if (!sigDrawing) return;
-      const p = pos(e);
-      sigCtx.lineTo(p.x, p.y);
-      sigCtx.stroke();
-    });
-    ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev =>
-      pad.addEventListener(ev, () => { sigDrawing = false; })
-    );
+      return { x: (e.touches ? e.touches[0].clientX : e.clientX) - r.left, y: (e.touches ? e.touches[0].clientY : e.clientY) - r.top };
+    };
+    pad.addEventListener('pointerdown', e => { sigDrawing = true; sigHasInk = true; const p = pos(e); sigCtx.beginPath(); sigCtx.moveTo(p.x, p.y); });
+    pad.addEventListener('pointermove', e => { if (!sigDrawing) return; const p = pos(e); sigCtx.lineTo(p.x, p.y); sigCtx.stroke(); });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => pad.addEventListener(ev, () => { sigDrawing = false; }));
   }
   function clearSig() {
     const pad = $('#sig-pad');
-    if (sigCtx) sigCtx.clearRect(0, 0, pad.width, pad.height);
-    sigHasInk = false;
-    sigImage = null;
+    if (sigCtx && pad) sigCtx.clearRect(0, 0, pad.width, pad.height);
+    sigHasInk = false; sigImage = null;
   }
   sigInput.addEventListener('change', async e => {
     const file = e.target.files?.[0];
     if (!file) return;
-    sigImage = { bytes: await file.arrayBuffer(), mime: file.type };
-    PDFUtils.setStatus('Signature image loaded.', 'success');
+    const bytes = await file.arrayBuffer();
+    sigImage = { bytes, mime: file.type, dataUrl: await blobToDataUrl(file) };
+    PDFUtils.setStatus('Signature image loaded — now click “Use this signature”.', 'success');
     sigInput.value = '';
   });
-  async function applySig() {
-    const pageIndex = state.selectedPages.size ? Math.min(...state.selectedPages) : 0;
-    const pos = {
-      x: Number($('#sig-x').value), y: Number($('#sig-y').value),
-      width: Number($('#sig-w').value), height: Number($('#sig-h').value)
-    };
-    let imageBytes, mime;
+  async function useSignature() {
+    let imageBytes, mime, dataUrl, aspect;
     if (sigImage) {
-      imageBytes = sigImage.bytes; mime = sigImage.mime;
+      imageBytes = sigImage.bytes; mime = sigImage.mime; dataUrl = sigImage.dataUrl;
+      aspect = await imgAspect(dataUrl);
     } else if (sigHasInk) {
       const pad = $('#sig-pad');
       const blob = await new Promise(r => pad.toBlob(r, 'image/png'));
-      imageBytes = await blob.arrayBuffer();
-      mime = 'image/png';
-    } else {
-      PDFUtils.setStatus('Draw a signature or upload an image first.', 'error');
-      return;
-    }
-    PDFUtils.setStatus('Signing…');
-    try {
-      const out = await PDFEngine.addImageOverlay(state.loaded, [{
-        pageIndex, imageBytes, mime, ...pos
-      }]);
-      PDFUtils.download(new Blob([out], { type: 'application/pdf' }),
-        `${PDFEngine.stripExt(state.loaded.name)}_signed.pdf`);
-      PDFUtils.setStatus('Signed PDF downloaded.', 'success');
-    } catch (e) { console.error(e); PDFUtils.setStatus('Signing failed.', 'error'); }
+      imageBytes = await blob.arrayBuffer(); mime = 'image/png';
+      dataUrl = await blobToDataUrl(blob);
+      aspect = pad.width / pad.height;
+    } else { PDFUtils.setStatus('Draw a signature or upload an image first.', 'error'); return; }
+    state.pendingSignature = { imageBytes, mime, dataUrl, aspect: aspect || 3 };
+    PDFUtils.setStatus('Signature ready — click on the page to place it.', 'success');
+    showInspector('sign');
+  }
+  function blobToDataUrl(blob) {
+    return new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(blob); });
+  }
+  function imgAspect(src) {
+    return new Promise(res => { const i = new Image(); i.onload = () => res(i.width / i.height); i.onerror = () => res(3); i.src = src; });
   }
 
 })();

@@ -6,8 +6,8 @@
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
 <meta name="theme-color" content="#1c1c1e" media="(prefers-color-scheme: dark)" />
 
-<title>PDF Editor — All Tools in One Place | MyFreePDFEdit</title>
-<meta name="description" content="Free online PDF editor. Merge, split, rotate, compress, sign and annotate PDFs in your browser. All tools, one workspace. No signup." />
+<title>PDF Editor — See & Edit Your PDF Live | MyFreePDFEdit</title>
+<meta name="description" content="Free online PDF editor with a live preview. Add and edit text, sign, redact, merge, split, rotate and compress PDFs right on the page — like Preview or Sejda. No signup." />
 <link rel="canonical" href="https://myfreepdfedit.com/editor/" />
 
 <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
@@ -38,7 +38,7 @@
 
 <div class="editor-shell" id="editor-shell">
 
-  <!-- Sidebar: tool list -->
+  <!-- Sidebar: tools -->
   <aside class="editor-sidebar">
     <h3>File</h3>
     <button class="tool-btn" data-tool="open" type="button">
@@ -48,6 +48,28 @@
     <button class="tool-btn" data-tool="add" type="button" disabled>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg>
       Add PDF (merge)
+    </button>
+
+    <h3>Edit</h3>
+    <button class="tool-btn" data-tool="select" type="button" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 3l15 9-6 1.5L11 20 5 3Z" stroke-linejoin="round"/></svg>
+      Select / Move
+    </button>
+    <button class="tool-btn" data-tool="text" type="button" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 6V4h14v2M12 4v16M9 20h6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Add text
+    </button>
+    <button class="tool-btn" data-tool="edittext" type="button" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 20h4l10-10-4-4L4 16v4Z" stroke-linejoin="round"/><path d="m14 6 4 4" stroke-linecap="round"/></svg>
+      Edit existing text
+    </button>
+    <button class="tool-btn" data-tool="sign" type="button" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 18c4-4 7-12 11-12 2 0 3 1 3 3 0 4-7 7-7 10 0 1 1 2 2 2 2 0 4-2 5-4" stroke-linecap="round"/><path d="M3 21h18" stroke-linecap="round"/></svg>
+      Signature
+    </button>
+    <button class="tool-btn" data-tool="redact" type="button" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="9" width="16" height="6" rx="1" fill="currentColor"/></svg>
+      Redact
     </button>
 
     <h3>Pages</h3>
@@ -64,16 +86,6 @@
       Delete pages
     </button>
 
-    <h3>Edit</h3>
-    <button class="tool-btn" data-tool="annotate" type="button" disabled>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 20h4l10-10-4-4L4 16v4Z" stroke-linejoin="round"/><path d="m14 6 4 4" stroke-linecap="round"/></svg>
-      Add text
-    </button>
-    <button class="tool-btn" data-tool="sign" type="button" disabled>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 18c4-4 7-12 11-12 2 0 3 1 3 3 0 4-7 7-7 10 0 1 1 2 2 2 2 0 4-2 5-4" stroke-linecap="round"/><path d="M3 21h18" stroke-linecap="round"/></svg>
-      Sign
-    </button>
-
     <h3>Export</h3>
     <button class="tool-btn" data-tool="compress" type="button" disabled>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 9V5h4M20 9V5h-4M4 15v4h4M20 15v4h-4" stroke-linecap="round"/></svg>
@@ -83,49 +95,72 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="m3 17 5-5 4 4 3-3 6 6" stroke-linejoin="round"/></svg>
       To Images
     </button>
-    <button class="tool-btn" data-tool="download" type="button" disabled>
+    <button class="tool-btn tool-btn-accent" data-tool="download" type="button" disabled>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 4v12m0 0-5-5m5 5 5-5M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg>
       Download PDF
     </button>
   </aside>
 
-  <!-- Main: thumbnails or empty state -->
-  <section class="editor-main" id="editor-main">
-    <div class="editor-empty" id="editor-empty">
-      <label class="dropzone" id="dropzone" for="file-input">
-        <svg class="dropzone-icon" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M12 16V4m0 0-4 4m4-4 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-          <path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/>
-        </svg>
-        <h2>Drop a PDF here or click to choose</h2>
-        <p>Your file never leaves your device</p>
-        <input id="file-input" type="file" accept="application/pdf" />
-      </label>
+  <!-- Page rail: thumbnails for navigation / selection -->
+  <aside class="editor-pages" id="editor-pages" aria-label="Pages"></aside>
+
+  <!-- Viewer: live page canvas + annotation overlay -->
+  <section class="editor-viewer" id="editor-viewer">
+
+    <div class="viewer-toolbar" id="viewer-toolbar" style="display:none;">
+      <div class="vt-group">
+        <button class="vt-btn" id="nav-prev" type="button" aria-label="Previous page">‹</button>
+        <span class="vt-page">Page <input type="number" id="nav-page" min="1" value="1" /> / <span id="nav-total">1</span></span>
+        <button class="vt-btn" id="nav-next" type="button" aria-label="Next page">›</button>
+      </div>
+      <div class="vt-file" id="vt-file"></div>
+      <div class="vt-group">
+        <button class="vt-btn" id="zoom-out" type="button" aria-label="Zoom out">−</button>
+        <span class="vt-zoom" id="zoom-label">150%</span>
+        <button class="vt-btn" id="zoom-in" type="button" aria-label="Zoom in">+</button>
+        <button class="vt-btn vt-btn-text" id="zoom-fit" type="button">Fit</button>
+      </div>
     </div>
 
-    <div id="editor-loaded" style="display:none;">
-      <div class="file-pill" id="current-file"></div>
-      <div class="thumb-grid" id="thumb-grid" aria-label="Pages"></div>
+    <div class="viewer-scroll" id="viewer-scroll">
+      <!-- Empty state -->
+      <div class="editor-empty" id="editor-empty">
+        <label class="dropzone" id="dropzone" for="file-input">
+          <svg class="dropzone-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 16V4m0 0-4 4m4-4 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+          </svg>
+          <h2>Drop a PDF here or click to choose</h2>
+          <p>Your file never leaves your device</p>
+          <input id="file-input" type="file" accept="application/pdf" />
+        </label>
+      </div>
+
+      <!-- Live page stage -->
+      <div class="page-stage" id="page-stage" style="display:none;">
+        <canvas id="page-canvas"></canvas>
+        <div class="text-layer" id="text-layer"></div>
+        <div class="ann-layer" id="ann-layer"></div>
+      </div>
     </div>
   </section>
 
-  <!-- Inspector: tool-specific controls -->
+  <!-- Inspector: contextual controls -->
   <aside class="editor-inspector" id="editor-inspector">
     <h3 id="inspector-title">Get started</h3>
-    <p class="hint" id="inspector-hint">Open a PDF on the left to begin editing.</p>
+    <p class="hint" id="inspector-hint">Open a PDF to begin editing.</p>
     <div id="inspector-body"></div>
     <div class="status" role="status" style="margin-top: 16px;"></div>
   </aside>
 
 </div>
 
-<!-- Hidden inputs for various file operations -->
+<!-- Hidden inputs -->
 <input type="file" id="add-file-input" accept="application/pdf" style="display:none;" />
 <input type="file" id="sig-image-input" accept="image/*" style="display:none;" />
 
 <!-- pdf-lib + pdf.js -->
 <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs" type="module"></script>
 <script type="module">
   import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs';
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs';

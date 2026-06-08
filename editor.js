@@ -135,7 +135,7 @@
     const viewport = page.getViewport({ scale: state.scale, rotation });
     state.viewport = viewport;
 
-    const ratio = window.devicePixelRatio || 1;
+    const ratio = Math.min(2, window.devicePixelRatio || 1); // cap for mobile memory
     canvas.width = Math.floor(viewport.width * ratio);
     canvas.height = Math.floor(viewport.height * ratio);
     canvas.style.width = viewport.width + 'px';

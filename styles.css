@@ -554,7 +554,9 @@ img, svg { display: block; max-width: 100%; }
 
 .viewer-scroll {
   flex: 1; overflow: auto;
-  display: flex; align-items: flex-start; justify-content: center;
+  -webkit-overflow-scrolling: touch;            /* momentum scroll on iOS */
+  display: flex; align-items: flex-start;
+  justify-content: safe center;                 /* keep left edge reachable when zoomed in */
   padding: 28px;
 }
 .viewer-scroll .editor-empty {
@@ -612,12 +614,17 @@ img, svg { display: block; max-width: 100%; }
 
 .ann-layer { position: absolute; inset: 0; z-index: 2; }
 
-/* Placement cursors per tool */
+/* Placement cursors per tool — and capture touches so drawing/placing
+   doesn't scroll the page on touch devices. */
 .page-stage[data-tool="text"] .ann-layer,
-.page-stage[data-tool="sign"] .ann-layer { cursor: copy; }
-.page-stage[data-tool="redact"] .ann-layer { cursor: crosshair; }
+.page-stage[data-tool="sign"] .ann-layer { cursor: copy; touch-action: none; }
+.page-stage[data-tool="redact"] .ann-layer { cursor: crosshair; touch-action: none; }
 
-.ann { position: absolute; box-sizing: border-box; }
+.ann {
+  position: absolute; box-sizing: border-box;
+  touch-action: none;          /* drag without scroll-jacking on touch */
+  -webkit-user-select: none; user-select: none;
+}
 .ann.selected { outline: 1.5px solid var(--accent); outline-offset: 1px; }
 
 .ann-text { min-width: 8px; padding: 0; }
@@ -629,6 +636,8 @@ img, svg { display: block; max-width: 100%; }
   cursor: text;
   min-width: 6px;
   min-height: 1em;
+  -webkit-user-select: text; user-select: text;   /* re-enable typing/selection */
+  touch-action: auto;
 }
 .ann-text.selected { outline-style: dashed; }
 
@@ -800,8 +809,9 @@ select.needs-pick {
   .editor-shell {
     grid-template-columns: 1fr;
     grid-template-rows: auto auto 1fr auto;
-    height: auto; min-height: calc(100vh - 52px);
-    overflow: visible;
+    height: auto; overflow: visible;
+    min-height: calc(100vh - 52px);
+    min-height: calc(100dvh - 52px);   /* avoids mobile URL-bar height jump */
   }
   .editor-sidebar {
     border-right: none; border-bottom: 1px solid var(--border);

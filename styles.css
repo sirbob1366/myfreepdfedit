@@ -636,6 +636,17 @@ img, svg { display: block; max-width: 100%; }
 }
 .check input { margin-top: 2px; }
 
+/* "Pick a font" prompt when detection fails */
+.field-note {
+  margin: 6px 0 0; font-size: 12px; line-height: 1.4;
+  color: #b25000;
+}
+:root[data-theme="dark"] .field-note { color: #ff9f0a; }
+select.needs-pick {
+  border-color: #ff9500 !important;
+  box-shadow: 0 0 0 3px rgba(255, 149, 0, 0.18);
+}
+
 /* Bold / italic / underline toggles */
 .style-toggles { display: flex; gap: 6px; }
 .sty-btn {

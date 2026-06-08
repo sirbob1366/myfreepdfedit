@@ -458,6 +458,7 @@
   }
 
   // Best-effort match of an existing text run to one of our 5 font families.
+  // `detected` is false when we have no reliable signal — the user is then asked to pick.
   function detectFont(item, styles, page) {
     let name = '';
     try {
@@ -469,13 +470,16 @@
     const ln = (name || '').toLowerCase();
     const bold = /bold|black|semibold|heavy|[-_ ]bd/.test(ln);
     const italic = /italic|oblique/.test(ln);
-    let key = 'arial';
+    let key = null;
     if (/calibri|carlito/.test(ln)) key = 'calibri';
     else if (/georgia|gelasio/.test(ln)) key = 'georgia';
     else if (/courier|mono|consolas/.test(ln) || fam.includes('mono')) key = 'courier';
-    else if (/times|serif|cambria|garamond|book antiqua|minion|roman/.test(ln) || (fam.includes('serif') && !fam.includes('sans'))) key = 'times';
-    else key = 'arial';
-    return { font: key, bold, italic };
+    else if (/times|cambria|garamond|book antiqua|minion|roman/.test(ln)) key = 'times';
+    else if (/arial|helvetica|calibri|verdana|tahoma|segoe/.test(ln)) key = 'arial';
+    else if (fam.includes('serif') && !fam.includes('sans')) key = 'times';
+    else if (fam.includes('sans')) key = 'arial';
+    // key stays null when nothing matched -> ask the user
+    return { font: key, bold, italic, detected: key !== null };
   }
 
   function editExistingRun(item, size, detected) {
@@ -487,7 +491,7 @@
       w: item.width, h: size * 1.25,
       text: item.str, size: Math.round(size),
       color: '#111111', bg: '#ffffff',   // white cover hides the original glyphs
-      font: (detected && detected.font) || 'arial',
+      font: (detected && detected.font) || '',   // '' => undetected, user must pick
       bold: !!(detected && detected.bold), italic: !!(detected && detected.italic), underline: false
     };
     state.annotations.push(a);
@@ -662,12 +666,18 @@
 
   function inspText(a) {
     inspectorTitle.textContent = a.bg ? 'Edit text' : 'Text';
+    const undetected = !a.font;
     inspectorHint.textContent = 'Type to edit. Drag the grip to move.';
     const fontOpts = Object.entries(PDFEngine.FONT_FAMILIES)
       .map(([k, f]) => `<option value="${k}" ${a.font === k ? 'selected' : ''}>${f.label}</option>`).join('');
+    const placeholder = undetected ? `<option value="" disabled selected>— Pick a font —</option>` : '';
+    const notice = undetected
+      ? `<p class="field-note" id="t-font-note">We couldn't detect the original font. Pick one of our available fonts to keep editing.</p>`
+      : '';
     inspectorBody.innerHTML = `
       <div class="field"><label>Font</label>
-        <select id="t-font">${fontOpts}</select>
+        <select id="t-font" ${undetected ? 'class="needs-pick"' : ''}>${placeholder}${fontOpts}</select>
+        ${notice}
       </div>
       <div class="field-row">
         <div class="field"><label>Size</label><input type="number" id="t-size" value="${a.size}" min="4" max="120" /></div>
@@ -685,7 +695,11 @@
       <button class="btn btn-ghost btn-block" id="t-del" type="button" style="margin-top:12px;">Delete text</button>
     `;
     const apply = () => { renderOverlay(); reselect(a.id); measureText(a); };
-    $('#t-font').onchange = () => { a.font = $('#t-font').value; apply(); };
+    $('#t-font').onchange = () => {
+      a.font = $('#t-font').value;
+      renderOverlay(); reselect(a.id); measureText(a);
+      showInspector('text', a); // refresh so the "pick a font" prompt clears
+    };
     $('#t-size').oninput = () => { a.size = Number($('#t-size').value) || a.size; apply(); };
     $('#t-color').oninput = () => { a.color = $('#t-color').value; renderOverlay(); reselect(a.id); };
     $('#t-bold').onclick = () => { a.bold = !a.bold; $('#t-bold').classList.toggle('active', a.bold); apply(); };

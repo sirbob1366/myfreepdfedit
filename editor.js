@@ -196,23 +196,77 @@
 
   applyBtn.onclick = async () => {
     if (!state.loaded) return;
-    applyBtn.disabled = true;
-    PDFUtils.setStatus('Applying changes…');
-    try {
-      const bytes = await currentBytes();
-      await saveBytes(bytes, `${PDFEngine.stripExt(state.loaded.name)}_edited.pdf`);
-      PDFUtils.setStatus('Saved your edited PDF.', 'success');
-    } catch (e) {
-      console.error(e);
-      PDFUtils.setStatus('Could not save. ' + (e && e.message ? e.message : ''), 'error');
-    } finally {
-      applyBtn.disabled = false;
-    }
+    PDFUtils.setStatus('Saving…');
+    const res = await saveBytes(() => currentBytes(), `${PDFEngine.stripExt(state.loaded.name)}_edited.pdf`);
+    if (res === 'saved') PDFUtils.setStatus('Saved your edited PDF.', 'success');
+    else if (res === 'cancelled') PDFUtils.setStatus('');
+    else PDFUtils.setStatus('Could not save the file.', 'error');
   };
 
-  // Save helper (standard download for now; native save-location added next).
-  async function saveBytes(bytes, filename) {
-    PDFUtils.download(new Blob([bytes], { type: 'application/pdf' }), filename);
+  // ---------- Saving (choose location where supported) ----------
+  const canPickFile = () => typeof window.showSaveFilePicker === 'function' && window.isSecureContext;
+  const canPickDir = () => typeof window.showDirectoryPicker === 'function' && window.isSecureContext;
+
+  async function resolveBytes(produce) {
+    return typeof produce === 'function' ? await produce() : produce;
+  }
+
+  // Save a single PDF. On Chrome/Edge a native Save dialog lets the user pick
+  // the folder + name; everywhere else (Safari, Firefox, iOS, Android) it falls
+  // back to a normal download. `produce` is bytes or an async producer.
+  // The picker opens BEFORE any heavy work to keep the user gesture valid.
+  // Returns 'saved' | 'cancelled' | 'error'.
+  async function saveBytes(produce, filename) {
+    if (canPickFile()) {
+      let handle;
+      try {
+        handle = await window.showSaveFilePicker({
+          suggestedName: filename,
+          types: [{ description: 'PDF document', accept: { 'application/pdf': ['.pdf'] } }]
+        });
+      } catch (e) {
+        if (e && e.name === 'AbortError') return 'cancelled';
+        handle = null; // not usable here — fall back to download
+      }
+      if (handle) {
+        try {
+          const bytes = await resolveBytes(produce);
+          const w = await handle.createWritable();
+          await w.write(new Blob([bytes], { type: 'application/pdf' }));
+          await w.close();
+          return 'saved';
+        } catch (e) { console.error(e); return 'error'; }
+      }
+    }
+    try {
+      const bytes = await resolveBytes(produce);
+      PDFUtils.download(new Blob([bytes], { type: 'application/pdf' }), filename);
+      return 'saved';
+    } catch (e) { console.error(e); return 'error'; }
+  }
+
+  // Save many files. On Chrome/Edge a directory picker writes them all to one
+  // chosen folder; elsewhere each is downloaded individually. `produceItems` is
+  // an async function returning [{ name, blob }]. Returns count saved (0 if cancelled).
+  async function saveMany(produceItems) {
+    if (canPickDir()) {
+      let dir;
+      try { dir = await window.showDirectoryPicker({ mode: 'readwrite' }); }
+      catch (e) { if (e && e.name === 'AbortError') return 0; dir = null; }
+      if (dir) {
+        const items = await produceItems();
+        for (const it of items) {
+          const fh = await dir.getFileHandle(it.name, { create: true });
+          const w = await fh.createWritable();
+          await w.write(it.blob);
+          await w.close();
+        }
+        return items.length;
+      }
+    }
+    const items = await produceItems();
+    for (const it of items) { PDFUtils.download(it.blob, it.name); await wait(120); }
+    return items.length;
   }
 
   function buildAnnEl(a) {
@@ -839,22 +893,27 @@
       } else if (state.selectedPages.size) {
         pages = Array.from(state.selectedPages).sort((a, b) => a - b);
       } else { PDFUtils.setStatus('Select pages or enter a range.', 'error'); return; }
-      PDFUtils.setStatus('Extracting…');
-      try {
+      PDFUtils.setStatus('Saving…');
+      const res = await saveBytes(async () => {
         const src = await currentLoaded();
         const [result] = await PDFEngine.split(src, [pages]);
-        PDFUtils.download(new Blob([result.bytes], { type: 'application/pdf' }), result.name);
-        PDFUtils.setStatus('Pages extracted.', 'success');
-      } catch (e) { console.error(e); PDFUtils.setStatus('Extraction failed.', 'error'); }
+        return result.bytes;
+      }, `${PDFEngine.stripExt(state.loaded.name)}_extracted.pdf`);
+      if (res === 'saved') PDFUtils.setStatus('Pages extracted.', 'success');
+      else if (res === 'cancelled') PDFUtils.setStatus('');
+      else PDFUtils.setStatus('Extraction failed.', 'error');
     };
     $('#split-each').onclick = async () => {
-      PDFUtils.setStatus('Splitting…');
+      PDFUtils.setStatus(canPickDir() ? 'Choose a folder to save into…' : 'Splitting…');
       try {
-        const src = await currentLoaded();
-        const ranges = Array.from({ length: state.numPages }, (_, i) => [i]);
-        const results = await PDFEngine.split(src, ranges);
-        for (const r of results) { PDFUtils.download(new Blob([r.bytes], { type: 'application/pdf' }), r.name); await wait(120); }
-        PDFUtils.setStatus(`${results.length} files downloaded.`, 'success');
+        const n = await saveMany(async () => {
+          PDFUtils.setStatus('Splitting…');
+          const src = await currentLoaded();
+          const ranges = Array.from({ length: state.numPages }, (_, i) => [i]);
+          const results = await PDFEngine.split(src, ranges);
+          return results.map(r => ({ name: r.name, blob: new Blob([r.bytes], { type: 'application/pdf' }) }));
+        });
+        PDFUtils.setStatus(n ? `${n} files saved.` : '', n ? 'success' : undefined);
       } catch (e) { console.error(e); PDFUtils.setStatus('Split failed.', 'error'); }
     };
   }
@@ -871,13 +930,15 @@
     if (btn) btn.onclick = async () => {
       const keep = Array.from({ length: state.numPages }, (_, i) => i).filter(i => !state.selectedPages.has(i));
       if (!keep.length) { PDFUtils.setStatus('You must keep at least one page.', 'error'); return; }
-      PDFUtils.setStatus('Removing pages…');
-      try {
+      PDFUtils.setStatus('Saving…');
+      const res = await saveBytes(async () => {
         const src = await currentLoaded();
         const [result] = await PDFEngine.split(src, [keep]);
-        PDFUtils.download(new Blob([result.bytes], { type: 'application/pdf' }), `${PDFEngine.stripExt(state.loaded.name)}_edited.pdf`);
-        PDFUtils.setStatus('Done.', 'success');
-      } catch (e) { console.error(e); PDFUtils.setStatus('Delete failed.', 'error'); }
+        return result.bytes;
+      }, `${PDFEngine.stripExt(state.loaded.name)}_edited.pdf`);
+      if (res === 'saved') PDFUtils.setStatus('Done.', 'success');
+      else if (res === 'cancelled') PDFUtils.setStatus('');
+      else PDFUtils.setStatus('Delete failed.', 'error');
     };
   }
 
@@ -897,14 +958,19 @@
     `;
     $('#comp-apply').onclick = async () => {
       const presets = { low: { quality: 0.85, dpi: 150 }, medium: { quality: 0.7, dpi: 120 }, high: { quality: 0.5, dpi: 96 } };
-      PDFUtils.setStatus('Compressing… this may take a moment.');
-      try {
+      const level = $('#comp-level').value;
+      let savedPct = null;
+      PDFUtils.setStatus('Choose where to save…');
+      const res = await saveBytes(async () => {
+        PDFUtils.setStatus('Compressing… this may take a moment.');
         const src = await currentLoaded();
-        const out = await PDFEngine.compress(src, presets[$('#comp-level').value]);
-        const saved = ((1 - out.length / src.size) * 100).toFixed(0);
-        await saveBytes(out, `${PDFEngine.stripExt(state.loaded.name)}_compressed.pdf`);
-        PDFUtils.setStatus(saved > 0 ? `Done — ${saved}% smaller.` : 'Done — file was already optimized.', 'success');
-      } catch (e) { console.error(e); PDFUtils.setStatus('Compression failed.', 'error'); }
+        const out = await PDFEngine.compress(src, presets[level]);
+        savedPct = ((1 - out.length / src.size) * 100).toFixed(0);
+        return out;
+      }, `${PDFEngine.stripExt(state.loaded.name)}_compressed.pdf`);
+      if (res === 'saved') PDFUtils.setStatus(savedPct > 0 ? `Done — ${savedPct}% smaller.` : 'Done — file was already optimized.', 'success');
+      else if (res === 'cancelled') PDFUtils.setStatus('');
+      else PDFUtils.setStatus('Compression failed.', 'error');
     };
   }
 
@@ -921,12 +987,16 @@
       <button class="btn btn-primary btn-block" id="img-apply" type="button">Export images</button>
     `;
     $('#img-apply').onclick = async () => {
-      PDFUtils.setStatus('Rendering pages…');
+      const format = $('#img-format').value, dpi = Number($('#img-dpi').value);
+      PDFUtils.setStatus(canPickDir() ? 'Choose a folder to save into…' : 'Rendering pages…');
       try {
-        const src = await currentLoaded();
-        const results = await PDFEngine.toImages(src, { format: $('#img-format').value, dpi: Number($('#img-dpi').value) });
-        for (const r of results) { PDFUtils.download(r.blob, r.name); await wait(120); }
-        PDFUtils.setStatus(`${results.length} images downloaded.`, 'success');
+        const n = await saveMany(async () => {
+          PDFUtils.setStatus('Rendering pages…');
+          const src = await currentLoaded();
+          const results = await PDFEngine.toImages(src, { format, dpi });
+          return results.map(r => ({ name: r.name, blob: r.blob }));
+        });
+        PDFUtils.setStatus(n ? `${n} images saved.` : '', n ? 'success' : undefined);
       } catch (e) { console.error(e); PDFUtils.setStatus('Export failed.', 'error'); }
     };
   }
@@ -939,12 +1009,11 @@
       : 'Saves the PDF with any rotations applied. Tip: the big "Apply Changes" button at the bottom does this too.';
     inspectorBody.innerHTML = `<button class="btn btn-primary btn-block" id="dl-apply" type="button">Apply changes &amp; save</button>`;
     $('#dl-apply').onclick = async () => {
-      PDFUtils.setStatus('Preparing…');
-      try {
-        const bytes = await currentBytes();
-        await saveBytes(bytes, `${PDFEngine.stripExt(state.loaded.name)}_edited.pdf`);
-        PDFUtils.setStatus('Saved.', 'success');
-      } catch (e) { console.error(e); PDFUtils.setStatus('Save failed.', 'error'); }
+      PDFUtils.setStatus('Saving…');
+      const res = await saveBytes(() => currentBytes(), `${PDFEngine.stripExt(state.loaded.name)}_edited.pdf`);
+      if (res === 'saved') PDFUtils.setStatus('Saved.', 'success');
+      else if (res === 'cancelled') PDFUtils.setStatus('');
+      else PDFUtils.setStatus('Save failed.', 'error');
     };
   }
 

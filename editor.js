@@ -48,6 +48,9 @@
   const navTotal = $('#nav-total');
   const zoomLabel = $('#zoom-label');
   const vtFile = $('#vt-file');
+  const actionBar = $('#viewer-actionbar');
+  const vaSummary = $('#va-summary');
+  const applyBtn = $('#apply-changes');
 
   const uid = () => 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
@@ -80,6 +83,7 @@
       emptyEl.style.display = 'none';
       stage.style.display = 'block';
       toolbar.style.display = 'flex';
+      actionBar.style.display = 'flex';
       enableTools();
       setTool('select');
       vtFile.textContent = `${state.loaded.name} · ${PDFUtils.formatBytes(state.loaded.size)}`;
@@ -171,6 +175,44 @@
   function renderOverlay() {
     annLayer.innerHTML = '';
     pageAnns().forEach(a => annLayer.appendChild(buildAnnEl(a)));
+    updateActionBar();
+  }
+
+  // ---------- Finishing bar ----------
+  function updateActionBar() {
+    if (!state.loaded) return;
+    const counts = { text: 0, signature: 0, redact: 0 };
+    for (const a of state.annotations) counts[a.type] = (counts[a.type] || 0) + 1;
+    const rotated = Object.values(state.pageRotations).filter(d => d % 360 !== 0).length;
+    const parts = [];
+    if (counts.text) parts.push(`<strong>${counts.text}</strong> text`);
+    if (counts.signature) parts.push(`<strong>${counts.signature}</strong> signature${counts.signature > 1 ? 's' : ''}`);
+    if (counts.redact) parts.push(`<strong>${counts.redact}</strong> redaction${counts.redact > 1 ? 's' : ''}`);
+    if (rotated) parts.push(`<strong>${rotated}</strong> rotated page${rotated > 1 ? 's' : ''}`);
+    vaSummary.innerHTML = parts.length
+      ? parts.join(' · ') + ' — ready to save'
+      : 'No changes yet — saves a copy of your PDF';
+  }
+
+  applyBtn.onclick = async () => {
+    if (!state.loaded) return;
+    applyBtn.disabled = true;
+    PDFUtils.setStatus('Applying changes…');
+    try {
+      const bytes = await currentBytes();
+      await saveBytes(bytes, `${PDFEngine.stripExt(state.loaded.name)}_edited.pdf`);
+      PDFUtils.setStatus('Saved your edited PDF.', 'success');
+    } catch (e) {
+      console.error(e);
+      PDFUtils.setStatus('Could not save. ' + (e && e.message ? e.message : ''), 'error');
+    } finally {
+      applyBtn.disabled = false;
+    }
+  };
+
+  // Save helper (standard download for now; native save-location added next).
+  async function saveBytes(bytes, filename) {
+    PDFUtils.download(new Blob([bytes], { type: 'application/pdf' }), filename);
   }
 
   function buildAnnEl(a) {
@@ -851,7 +893,7 @@
           <option value="high">High — smallest size</option>
         </select>
       </div>
-      <button class="btn btn-primary btn-block" id="comp-apply" type="button">Compress & download</button>
+      <button class="btn btn-primary btn-block" id="comp-apply" type="button">Apply changes &amp; compress</button>
     `;
     $('#comp-apply').onclick = async () => {
       const presets = { low: { quality: 0.85, dpi: 150 }, medium: { quality: 0.7, dpi: 120 }, high: { quality: 0.5, dpi: 96 } };
@@ -860,7 +902,7 @@
         const src = await currentLoaded();
         const out = await PDFEngine.compress(src, presets[$('#comp-level').value]);
         const saved = ((1 - out.length / src.size) * 100).toFixed(0);
-        PDFUtils.download(new Blob([out], { type: 'application/pdf' }), `${PDFEngine.stripExt(state.loaded.name)}_compressed.pdf`);
+        await saveBytes(out, `${PDFEngine.stripExt(state.loaded.name)}_compressed.pdf`);
         PDFUtils.setStatus(saved > 0 ? `Done — ${saved}% smaller.` : 'Done — file was already optimized.', 'success');
       } catch (e) { console.error(e); PDFUtils.setStatus('Compression failed.', 'error'); }
     };
@@ -891,18 +933,18 @@
 
   function inspDownload() {
     const count = state.annotations.length;
-    inspectorTitle.textContent = 'Download PDF';
+    inspectorTitle.textContent = 'Apply changes & save';
     inspectorHint.textContent = count
       ? `Bakes ${count} edit(s) and any rotations into a new PDF.`
-      : 'Downloads the PDF with any rotations applied.';
-    inspectorBody.innerHTML = `<button class="btn btn-primary btn-block" id="dl-apply" type="button">Download edited PDF</button>`;
+      : 'Saves the PDF with any rotations applied. Tip: the big "Apply Changes" button at the bottom does this too.';
+    inspectorBody.innerHTML = `<button class="btn btn-primary btn-block" id="dl-apply" type="button">Apply changes &amp; save</button>`;
     $('#dl-apply').onclick = async () => {
       PDFUtils.setStatus('Preparing…');
       try {
         const bytes = await currentBytes();
-        PDFUtils.download(new Blob([bytes], { type: 'application/pdf' }), `${PDFEngine.stripExt(state.loaded.name)}_edited.pdf`);
-        PDFUtils.setStatus('Downloaded.', 'success');
-      } catch (e) { console.error(e); PDFUtils.setStatus('Download failed.', 'error'); }
+        await saveBytes(bytes, `${PDFEngine.stripExt(state.loaded.name)}_edited.pdf`);
+        PDFUtils.setStatus('Saved.', 'success');
+      } catch (e) { console.error(e); PDFUtils.setStatus('Save failed.', 'error'); }
     };
   }
 

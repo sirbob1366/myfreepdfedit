@@ -563,6 +563,31 @@ img, svg { display: block; max-width: 100%; }
 }
 .viewer-scroll .editor-empty .dropzone { width: 100%; max-width: 520px; }
 
+/* ---------- Persistent finishing bar ---------- */
+.viewer-actionbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 12px 20px;
+  background: var(--bg-card);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -4px 16px rgba(0,0,0,0.05);
+  z-index: 4;
+}
+.va-summary { font-size: 13px; color: var(--text-secondary); min-width: 0; }
+.va-summary strong { color: var(--text); font-weight: 600; }
+.btn-apply {
+  background: var(--accent); color: #fff;
+  border: none; border-radius: 10px;
+  padding: 13px 28px;
+  font-size: 16px; font-weight: 600; letter-spacing: -0.01em;
+  display: inline-flex; align-items: center; gap: 8px;
+  box-shadow: var(--shadow-md);
+  transition: background-color 0.15s ease, transform 0.1s ease;
+  white-space: nowrap;
+}
+.btn-apply:hover { background: var(--accent-hover); transform: translateY(-1px); }
+.btn-apply:active { transform: translateY(0); }
+.btn-apply svg { width: 20px; height: 20px; }
+
 /* ---------- Live page stage ---------- */
 .page-stage {
   position: relative;
@@ -796,6 +821,8 @@ select.needs-pick {
     border-left: none; border-top: 1px solid var(--border);
     max-height: 50vh;
   }
+  .viewer-actionbar { flex-wrap: wrap; gap: 10px; padding: 10px 14px; }
+  .btn-apply { flex: 1; justify-content: center; }
 }
 
 /* Cross-link banner from tool pages to editor */

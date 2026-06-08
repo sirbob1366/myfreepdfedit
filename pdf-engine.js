@@ -278,7 +278,11 @@
         } else if (a.type === 'text') {
           if (a.bg) {
             const bg = hexToRgb(a.bg);
-            page.drawRectangle({ x: a.x - 1, y: bottom, width: a.w + 2, height: a.h, color: PDFLib.rgb(bg.r, bg.g, bg.b) });
+            // Cover at least the original run (bgW/bgH) and grow if the typed
+            // text is larger, so deleting/shortening text never reveals the original.
+            const bw = a.bgW != null ? Math.max(a.bgW, a.w || 0) : a.w;
+            const bh = a.bgH != null ? Math.max(a.bgH, a.h || 0) : a.h;
+            page.drawRectangle({ x: a.x - 1, y: a.yTop - bh, width: bw + 2, height: bh, color: PDFLib.rgb(bg.r, bg.g, bg.b) });
           }
           const text = (a.text || '');
           if (text.trim()) {

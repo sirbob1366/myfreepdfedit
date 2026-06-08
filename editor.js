@@ -285,7 +285,15 @@
       el.style.fontWeight = a.bold ? '700' : '400';
       el.style.fontStyle = a.italic ? 'italic' : 'normal';
       el.style.textDecoration = a.underline ? 'underline' : 'none';
-      if (a.bg) el.style.background = a.bg;
+      if (a.bg) {
+        el.style.background = a.bg;
+        // Fixed cover (editing existing text): keep covering the original run
+        // even when the replacement text is shorter or empty.
+        if (a.bgW != null) {
+          el.style.minWidth = (a.bgW * state.scale) + 'px';
+          el.style.minHeight = (a.bgH * state.scale) + 'px';
+        }
+      }
 
       const edit = document.createElement('div');
       edit.className = 'ann-text-edit';
@@ -454,6 +462,11 @@
       placeSignature(p.x, p.y);
     } else if (state.currentTool === 'redact') {
       startDrawRedact(e, p);
+    } else if (state.currentTool === 'edittext') {
+      // deselect and bring the editable-text outlines back so another run can be picked
+      state.selectedAnnId = null;
+      renderOverlay();
+      if (state.pdfjsDoc) state.pdfjsDoc.getPage(state.currentPage + 1).then(renderTextLayer);
     } else {
       // select tool: clicking empty deselects
       state.selectedAnnId = null;
@@ -547,7 +560,7 @@
       box.addEventListener('pointerdown', e => {
         e.stopPropagation();
         editExistingRun(item, size, detectFont(item, styles, page));
-        box.style.display = 'none';
+        clearTextLayer(); // hide ALL run boxes so editing isn't intercepted by neighbours
       });
       textLayer.appendChild(box);
     }
@@ -580,11 +593,17 @@
 
   function editExistingRun(item, size, detected) {
     const tr = item.transform;
-    const ascent = size * 0.8;
+    const baseline = tr[5];               // PDF baseline (bottom-left origin)
+    // yTop is the top anchor; baked baseline = yTop - size, so this lands the
+    // replacement on the ORIGINAL baseline.
+    const yTop = baseline + size;
+    const coverW = item.width;
+    const coverH = size * 1.3;            // covers ascenders + descenders generously
     const a = {
       id: uid(), type: 'text', pageIndex: state.currentPage,
-      x: tr[4], yTop: tr[5] + ascent,
-      w: item.width, h: size * 1.25,
+      x: tr[4], yTop,
+      w: coverW, h: coverH,
+      bgW: coverW, bgH: coverH,            // FIXED cover sized to the original run
       text: item.str, size: Math.round(size),
       color: '#111111', bg: '#ffffff',   // white cover hides the original glyphs
       font: (detected && detected.font) || '',   // '' => undetected, user must pick

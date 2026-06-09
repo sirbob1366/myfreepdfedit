@@ -1060,8 +1060,8 @@ select.needs-pick {
 .prose p { margin: 0 0 16px; }
 .prose ul { margin: 0 0 16px; padding-left: 22px; }
 .prose li { margin: 0 0 8px; }
-.prose a { color: var(--accent); }
-.prose a:hover { text-decoration: underline; }
+.prose a:not(.btn) { color: var(--accent); }
+.prose a:not(.btn):hover { text-decoration: underline; }
 .prose strong { color: var(--text); font-weight: 600; }
 
 /* Contact cards */

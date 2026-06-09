@@ -543,6 +543,8 @@ img, svg { display: block; max-width: 100%; }
   transition: background-color 0.12s ease;
 }
 .vt-btn:hover { background: var(--border); }
+.vt-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.vt-btn:disabled:hover { background: var(--bg-elevated); }
 .vt-btn-text { font-size: 13px; }
 .vt-page { font-size: 13px; color: var(--text-secondary); display: inline-flex; align-items: center; gap: 4px; }
 .vt-page input {

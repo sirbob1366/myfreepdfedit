@@ -52,6 +52,8 @@
   const actionBar = $('#viewer-actionbar');
   const vaSummary = $('#va-summary');
   const applyBtn = $('#apply-changes');
+  const undoBtn = $('#undo-btn');
+  const redoBtn = $('#redo-btn');
 
   const uid = () => 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
@@ -91,6 +93,7 @@
       vtFile.textContent = `${state.loaded.name} · ${PDFUtils.formatBytes(state.loaded.size)}`;
       await renderThumbs();
       await renderPage();
+      resetHistory();
       PDFUtils.setStatus('');
 
       const requested = location.hash.replace('#', '');
@@ -156,6 +159,78 @@
     zoomLabel.textContent = Math.round(state.scale * 100) + '%';
     highlightCurrentThumb();
   }
+
+  // ---------- Undo / redo history ----------
+  // history[histIndex] always mirrors the current editor state. commit() records
+  // a new state after a change; undo/redo step through. Snapshots clone the
+  // mutable bits (annotations/rotations/crops) and reference the loaded document
+  // (which only changes on crop/merge, so those steps reload on undo).
+  const HISTORY_CAP = 60;
+  let history = [];
+  let histIndex = -1;
+  let textCommitTimer = null;
+
+  function cloneMap(obj) {
+    const out = {};
+    for (const k in obj) out[k] = obj[k] && typeof obj[k] === 'object' ? { ...obj[k] } : obj[k];
+    return out;
+  }
+  function snapshot() {
+    return {
+      annotations: state.annotations.map(a => ({ ...a })),
+      pageRotations: { ...state.pageRotations },
+      pageCrops: cloneMap(state.pageCrops),
+      loaded: state.loaded,
+      currentPage: state.currentPage
+    };
+  }
+  function resetHistory() {
+    history = [snapshot()];
+    histIndex = 0;
+    updateUndoButtons();
+  }
+  function commit() {
+    clearTimeout(textCommitTimer); textCommitTimer = null;
+    if (histIndex < history.length - 1) history = history.slice(0, histIndex + 1); // drop redo tail
+    history.push(snapshot());
+    if (history.length > HISTORY_CAP) history.shift();
+    histIndex = history.length - 1;
+    updateUndoButtons();
+  }
+  function commitTextDebounced() {
+    clearTimeout(textCommitTimer);
+    textCommitTimer = setTimeout(commit, 500);
+  }
+  async function restore(snap) {
+    const reload = snap.loaded !== state.loaded;
+    state.annotations = snap.annotations.map(a => ({ ...a }));
+    state.pageRotations = { ...snap.pageRotations };
+    state.pageCrops = cloneMap(snap.pageCrops);
+    state.loaded = snap.loaded;
+    state.selectedAnnId = null;
+    if (reload) { await openPdfjs(); await renderThumbs(); }
+    state.currentPage = Math.min(snap.currentPage, state.numPages - 1);
+    await renderPage();
+    showInspector(state.currentTool);
+    updateUndoButtons();
+  }
+  async function undo() {
+    clearTimeout(textCommitTimer); textCommitTimer = null;
+    if (histIndex <= 0) return;
+    histIndex--;
+    await restore(history[histIndex]);
+  }
+  async function redo() {
+    if (histIndex >= history.length - 1) return;
+    histIndex++;
+    await restore(history[histIndex]);
+  }
+  function updateUndoButtons() {
+    if (undoBtn) undoBtn.disabled = histIndex <= 0;
+    if (redoBtn) redoBtn.disabled = histIndex >= history.length - 1;
+  }
+  if (undoBtn) undoBtn.onclick = undo;
+  if (redoBtn) redoBtn.onclick = redo;
 
   // ---------- Annotation overlay ----------
   function pageAnns() {
@@ -312,6 +387,7 @@
         // keep PDF-space size in sync with rendered box
         a.w = edit.offsetWidth / state.scale;
         a.h = edit.offsetHeight / state.scale;
+        commitTextDebounced();
       });
       edit.addEventListener('focus', () => selectAnn(a.id, false));
       edit.addEventListener('pointerdown', e => e.stopPropagation());
@@ -376,7 +452,9 @@
       const start = stagePoint(e);
       const origin = getOrigin();
       const offX = start.x - origin.x, offY = start.y - origin.y;
+      let moved = false;
       const move = ev => {
+        moved = true;
         const p = stagePoint(ev);
         setFromView(p.x - offX, p.y - offY);
         const o = getOrigin();
@@ -386,6 +464,7 @@
       const up = () => {
         window.removeEventListener('pointermove', move);
         window.removeEventListener('pointerup', up);
+        if (moved) commit();
       };
       window.addEventListener('pointermove', move);
       window.addEventListener('pointerup', up);
@@ -399,7 +478,9 @@
     const r0 = getRect();
     const offX = start.x - r0.left, offY = start.y - r0.top;
     const el = annLayer.querySelector(`[data-id="${a.id}"]`);
+    let moved = false;
     const move = ev => {
+      moved = true;
       const p = stagePoint(ev);
       apply(p.x - offX, p.y - offY);
       const r = getRect();
@@ -408,6 +489,7 @@
     const up = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
+      if (moved) commit();
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
@@ -422,7 +504,9 @@
       const start = stagePoint(e);
       const w0 = a.w, h0 = a.h;
       const aspect = w0 / h0;
+      let moved = false;
       const move = ev => {
+        moved = true;
         const p = stagePoint(ev);
         let dw = (p.x - start.x) / state.scale;
         a.w = Math.max(8, w0 + dw);
@@ -436,6 +520,7 @@
       const up = () => {
         window.removeEventListener('pointermove', move);
         window.removeEventListener('pointerup', up);
+        if (moved) commit();
       };
       window.addEventListener('pointermove', move);
       window.addEventListener('pointerup', up);
@@ -459,14 +544,25 @@
     if (state.selectedAnnId === id) state.selectedAnnId = null;
     renderOverlay();
     showInspector(state.currentTool);
+    commit();
   }
 
   document.addEventListener('keydown', e => {
+    if (!state.loaded) return;
+    const active = document.activeElement;
+    const tag = active && active.tagName;
+    const inField = active && (active.isContentEditable || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT');
+
+    // Undo / redo — leave native undo to text fields when one is focused
+    if ((e.ctrlKey || e.metaKey) && !inField) {
+      const k = e.key.toLowerCase();
+      if (k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
+      if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); redo(); return; }
+    }
+
     if ((e.key === 'Delete' || e.key === 'Backspace') && state.selectedAnnId) {
-      const active = document.activeElement;
-      const tag = active && active.tagName;
       // don't hijack delete/backspace while typing in any field
-      if (active && (active.isContentEditable || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT')) return;
+      if (inField) return;
       e.preventDefault();
       deleteAnn(state.selectedAnnId);
     }
@@ -513,6 +609,7 @@
     };
     state.annotations.push(a);
     selectAnn(a.id);
+    commit();
     requestAnimationFrame(() => {
       const node = annLayer.querySelector(`[data-id="${a.id}"] .ann-text-edit`);
       if (node) node.focus();
@@ -530,6 +627,7 @@
     };
     state.annotations.push(a);
     selectAnn(a.id);
+    commit();
   }
 
   function startDrawRedact(e, startPt) {
@@ -560,6 +658,7 @@
       };
       state.annotations.push(a);
       selectAnn(a.id);
+      commit();
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
@@ -574,6 +673,7 @@
     };
     state.annotations.push(a);
     selectAnn(a.id);
+    commit();
   }
 
   // ---------- Crop ----------
@@ -734,6 +834,7 @@
     };
     state.annotations.push(a);
     selectAnn(a.id);
+    commit();
     requestAnimationFrame(() => {
       const node = annLayer.querySelector(`[data-id="${a.id}"] .ann-text-edit`);
       if (node) {
@@ -849,6 +950,7 @@
       vtFile.textContent = `${state.loaded.name} · ${PDFUtils.formatBytes(state.loaded.size)}`;
       await renderThumbs();
       await renderPage();
+      commit();
       PDFUtils.setStatus(`Added ${file.name}.`, 'success');
     } catch (err) {
       console.error(err);
@@ -956,14 +1058,15 @@
     $('#t-font').onchange = () => {
       a.font = $('#t-font').value;
       renderOverlay(); reselect(a.id); measureText(a);
+      commit();
       showInspector('text', a); // refresh so the "pick a font" prompt clears
     };
-    $('#t-size').oninput = () => { a.size = Number($('#t-size').value) || a.size; apply(); };
-    $('#t-color').oninput = () => { a.color = $('#t-color').value; renderOverlay(); reselect(a.id); };
-    $('#t-bold').onclick = () => { a.bold = !a.bold; $('#t-bold').classList.toggle('active', a.bold); apply(); };
-    $('#t-italic').onclick = () => { a.italic = !a.italic; $('#t-italic').classList.toggle('active', a.italic); apply(); };
-    $('#t-underline').onclick = () => { a.underline = !a.underline; $('#t-underline').classList.toggle('active', a.underline); renderOverlay(); reselect(a.id); };
-    $('#t-bg').onchange = () => { a.bg = $('#t-bg').checked ? '#ffffff' : null; renderOverlay(); reselect(a.id); };
+    $('#t-size').oninput = () => { a.size = Number($('#t-size').value) || a.size; apply(); commitTextDebounced(); };
+    $('#t-color').oninput = () => { a.color = $('#t-color').value; renderOverlay(); reselect(a.id); commitTextDebounced(); };
+    $('#t-bold').onclick = () => { a.bold = !a.bold; $('#t-bold').classList.toggle('active', a.bold); apply(); commit(); };
+    $('#t-italic').onclick = () => { a.italic = !a.italic; $('#t-italic').classList.toggle('active', a.italic); apply(); commit(); };
+    $('#t-underline').onclick = () => { a.underline = !a.underline; $('#t-underline').classList.toggle('active', a.underline); renderOverlay(); reselect(a.id); commit(); };
+    $('#t-bg').onchange = () => { a.bg = $('#t-bg').checked ? '#ffffff' : null; renderOverlay(); reselect(a.id); commit(); };
     $('#t-del').onclick = () => deleteAnn(a.id);
   }
 
@@ -980,6 +1083,7 @@
     }
     a.text = node.innerText;
     measureText(a);
+    commitTextDebounced();
   }
 
   function reselect(id) {
@@ -1001,6 +1105,7 @@
       a.text = ta.value;
       const el = annLayer.querySelector(`[data-id="${a.id}"]`);
       if (el) el.title = a.text || 'Comment';
+      commitTextDebounced();
     };
     ta.focus();
     $('#cm-del').onclick = () => deleteAnn(a.id);
@@ -1045,6 +1150,7 @@
       await renderThumbs();
       await renderPage();
       setTool('select');
+      commit();
       PDFUtils.setStatus('Page cropped — keep editing.', 'success');
     } catch (e) {
       console.error(e);
@@ -1107,6 +1213,7 @@
         state.pageRotations[i] = (((state.pageRotations[i] || 0) + deg) % 360 + 360) % 360;
       });
       renderPage();
+      commit();
     };
     $('#rot-left').onclick = () => setRot(-90);
     $('#rot-right').onclick = () => setRot(90);

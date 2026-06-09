@@ -126,6 +126,14 @@
 
     <div class="viewer-toolbar" id="viewer-toolbar" style="display:none;">
       <div class="vt-group">
+        <button class="vt-btn" id="undo-btn" type="button" aria-label="Undo" title="Undo (Ctrl+Z)" disabled>
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 7 4 12l5 5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 12h11a5 5 0 0 1 0 10h-3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="vt-btn" id="redo-btn" type="button" aria-label="Redo" title="Redo (Ctrl+Y)" disabled>
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m15 7 5 5-5 5" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 12H9a5 5 0 0 0 0 10h3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+      <div class="vt-group">
         <button class="vt-btn" id="nav-prev" type="button" aria-label="Previous page">‹</button>
         <span class="vt-page">Page <input type="number" id="nav-page" min="1" value="1" /> / <span id="nav-total">1</span></span>
         <button class="vt-btn" id="nav-next" type="button" aria-label="Next page">›</button>

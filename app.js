@@ -40,6 +40,9 @@
         .then(() => loadScript('/auth.js'));
     })
     .catch(err => console.warn('Account features unavailable:', err));
+
+  // ---------- FAQ help widget (every page) ----------
+  loadScript('/chatbot.js').catch(err => console.warn('Help widget unavailable:', err));
 })();
 
 /* Exposed helpers for tool pages */

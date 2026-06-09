@@ -18,6 +18,7 @@
     viewport: null,          // current pdf.js viewport (with rotation)
     annotations: [],         // live edits across all pages
     pageRotations: {},       // { pageIndex: deltaDegrees }
+    pageCrops: {},           // { pageIndex: { x, yTop, w, h } } PDF points
     selectedPages: new Set(),// for page ops (rotate/split/delete)
     currentTool: 'select',
     selectedAnnId: null,
@@ -76,6 +77,7 @@
       state.loaded = await PDFEngine.loadPdf(file);
       state.annotations = [];
       state.pageRotations = {};
+      state.pageCrops = {};
       state.selectedPages.clear();
       state.selectedAnnId = null;
       state.currentPage = 0;
@@ -175,19 +177,24 @@
   function renderOverlay() {
     annLayer.innerHTML = '';
     pageAnns().forEach(a => annLayer.appendChild(buildAnnEl(a)));
+    const crop = state.pageCrops[state.currentPage];
+    if (crop && state.currentTool === 'crop') annLayer.appendChild(buildCropEl(crop));
     updateActionBar();
   }
 
   // ---------- Finishing bar ----------
   function updateActionBar() {
     if (!state.loaded) return;
-    const counts = { text: 0, signature: 0, redact: 0 };
+    const counts = { text: 0, signature: 0, redact: 0, comment: 0 };
     for (const a of state.annotations) counts[a.type] = (counts[a.type] || 0) + 1;
     const rotated = Object.values(state.pageRotations).filter(d => d % 360 !== 0).length;
+    const cropped = Object.values(state.pageCrops).filter(Boolean).length;
     const parts = [];
     if (counts.text) parts.push(`<strong>${counts.text}</strong> text`);
     if (counts.signature) parts.push(`<strong>${counts.signature}</strong> signature${counts.signature > 1 ? 's' : ''}`);
     if (counts.redact) parts.push(`<strong>${counts.redact}</strong> redaction${counts.redact > 1 ? 's' : ''}`);
+    if (counts.comment) parts.push(`<strong>${counts.comment}</strong> comment${counts.comment > 1 ? 's' : ''}`);
+    if (cropped) parts.push(`<strong>${cropped}</strong> cropped page${cropped > 1 ? 's' : ''}`);
     if (rotated) parts.push(`<strong>${rotated}</strong> rotated page${rotated > 1 ? 's' : ''}`);
     vaSummary.innerHTML = parts.length
       ? parts.join(' · ') + ' — ready to save'
@@ -312,6 +319,22 @@
 
       addMoveHandle(el, a, () => toView(a.x, a.yTop), (vx, vy) => {
         const p = toPdf(vx, vy); a.x = p.x; a.yTop = p.y;
+      });
+    } else if (a.type === 'comment') {
+      const tl = toView(a.x, a.yTop);
+      el.style.left = tl.x + 'px';
+      el.style.top = tl.y + 'px';
+      el.title = a.text || 'Comment';
+      el.innerHTML = `
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <path d="M4 4h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H9l-5 4V5a1 1 0 0 1 1-1Z" fill="#ffcf33" stroke="#a9820a" stroke-width="1.2" stroke-linejoin="round"/>
+          <path d="M8 9h8M8 12h5" stroke="#a9820a" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>`;
+      // drag the marker by its body
+      el.addEventListener('pointerdown', e => {
+        beginDrag(e, a, () => {
+          const v = toView(a.x, a.yTop); return { left: v.x, top: v.y };
+        }, (left, top) => { const p = toPdf(left, top); a.x = p.x; a.yTop = p.y; });
       });
     } else {
       const r = annRect(a);
@@ -441,7 +464,9 @@
   document.addEventListener('keydown', e => {
     if ((e.key === 'Delete' || e.key === 'Backspace') && state.selectedAnnId) {
       const active = document.activeElement;
-      if (active && active.classList.contains('ann-text-edit')) return; // editing text
+      const tag = active && active.tagName;
+      // don't hijack delete/backspace while typing in any field
+      if (active && (active.isContentEditable || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT')) return;
       e.preventDefault();
       deleteAnn(state.selectedAnnId);
     }
@@ -462,6 +487,10 @@
       placeSignature(p.x, p.y);
     } else if (state.currentTool === 'redact') {
       startDrawRedact(e, p);
+    } else if (state.currentTool === 'comment') {
+      createComment(p.x, p.y);
+    } else if (state.currentTool === 'crop') {
+      startDrawCrop(e, p);
     } else if (state.currentTool === 'edittext') {
       // deselect and bring the editable-text outlines back so another run can be picked
       state.selectedAnnId = null;
@@ -534,6 +563,100 @@
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+  }
+
+  // ---------- Comment (sticky note) ----------
+  function createComment(viewX, viewY) {
+    const p = toPdf(viewX, viewY);
+    const a = {
+      id: uid(), type: 'comment', pageIndex: state.currentPage,
+      x: p.x, yTop: p.y, w: 22, h: 22, text: ''
+    };
+    state.annotations.push(a);
+    selectAnn(a.id);
+  }
+
+  // ---------- Crop ----------
+  function startDrawCrop(e, startPt) {
+    const ghost = document.createElement('div');
+    ghost.className = 'crop-rect';
+    ghost.style.left = startPt.x + 'px';
+    ghost.style.top = startPt.y + 'px';
+    annLayer.appendChild(ghost);
+    const move = ev => {
+      const p = stagePoint(ev);
+      ghost.style.left = Math.min(p.x, startPt.x) + 'px';
+      ghost.style.top = Math.min(p.y, startPt.y) + 'px';
+      ghost.style.width = Math.abs(p.x - startPt.x) + 'px';
+      ghost.style.height = Math.abs(p.y - startPt.y) + 'px';
+    };
+    const up = ev => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      const p = stagePoint(ev);
+      const left = Math.min(p.x, startPt.x), top = Math.min(p.y, startPt.y);
+      const wPx = Math.abs(p.x - startPt.x), hPx = Math.abs(p.y - startPt.y);
+      ghost.remove();
+      if (wPx < 10 || hPx < 10) { renderOverlay(); return; }
+      const tl = toPdf(left, top);
+      const br = toPdf(left + wPx, top + hPx);
+      state.pageCrops[state.currentPage] = {
+        x: Math.min(tl.x, br.x), yTop: Math.max(tl.y, br.y),
+        w: Math.abs(br.x - tl.x), h: Math.abs(br.y - tl.y)
+      };
+      renderOverlay();
+      showInspector('crop');
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  }
+
+  // Crop box overlay for the current page (dim outside, draggable + resizable).
+  function buildCropEl(c) {
+    const el = document.createElement('div');
+    el.className = 'crop-rect crop-active';
+    const place = () => {
+      const r = annRect({ x: c.x, yTop: c.yTop, w: c.w, h: c.h });
+      el.style.left = r.left + 'px'; el.style.top = r.top + 'px';
+      el.style.width = r.width + 'px'; el.style.height = r.height + 'px';
+    };
+    place();
+    // drag to move
+    el.addEventListener('pointerdown', ev => {
+      if (ev.target.classList.contains('ann-resize')) return;
+      ev.stopPropagation();
+      const start = stagePoint(ev);
+      const r0 = annRect({ x: c.x, yTop: c.yTop, w: c.w, h: c.h });
+      const offX = start.x - r0.left, offY = start.y - r0.top;
+      const move = e2 => {
+        const pt = stagePoint(e2);
+        const ntl = toPdf(pt.x - offX, pt.y - offY);
+        c.x = ntl.x; c.yTop = ntl.y;
+        place();
+      };
+      const upp = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', upp); };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', upp);
+    });
+    // resize handle
+    const h = document.createElement('div');
+    h.className = 'ann-resize';
+    h.addEventListener('pointerdown', ev => {
+      ev.stopPropagation();
+      const start = stagePoint(ev);
+      const w0 = c.w, h0 = c.h;
+      const move = e2 => {
+        const pt = stagePoint(e2);
+        c.w = Math.max(16, w0 + (pt.x - start.x) / state.scale);
+        c.h = Math.max(16, h0 + (pt.y - start.y) / state.scale);
+        place();
+      };
+      const upp = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', upp); };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', upp);
+    });
+    el.appendChild(h);
+    return el;
   }
 
   // ---------- Edit-existing-text layer ----------
@@ -703,6 +826,7 @@
       if (tool === 'edittext') state.pdfjsDoc.getPage(state.currentPage + 1).then(renderTextLayer);
       else clearTextLayer();
     }
+    if (state.viewport) renderOverlay(); // show/hide the crop box when entering/leaving Crop
     showInspector(tool);
   }
 
@@ -718,6 +842,7 @@
       state.loaded = await PDFEngine.loadPdf(new File([merged], state.loaded.name, { type: 'application/pdf' }));
       state.annotations = [];
       state.pageRotations = {};
+      state.pageCrops = {};
       state.selectedPages.clear();
       state.selectedAnnId = null;
       await openPdfjs();
@@ -734,7 +859,7 @@
 
   // ---------- Bake helpers ----------
   async function currentBytes() {
-    return PDFEngine.applyAnnotations(state.loaded, state.annotations, state.pageRotations);
+    return PDFEngine.applyAnnotations(state.loaded, state.annotations, state.pageRotations, state.pageCrops);
   }
   async function currentLoaded() {
     const bytes = await currentBytes();
@@ -749,6 +874,7 @@
     if (ann && ann.type === 'text') return inspText(ann);
     if (ann && ann.type === 'signature') return inspSelectedBox(ann, 'Signature', 'Drag to move, drag the corner to resize.');
     if (ann && ann.type === 'redact') return inspSelectedBox(ann, 'Redaction', 'Covers the content with an opaque box. Note: the underlying text is hidden, not deleted from the file.');
+    if (ann && ann.type === 'comment') return inspComment(ann);
 
     if (tool === 'select') {
       inspectorTitle.textContent = 'Select / Move';
@@ -771,6 +897,12 @@
       inspectorHint.textContent = 'Drag a rectangle over anything you want to black out. Covers content visually — underlying text stays in the file but hidden.';
       return;
     }
+    if (tool === 'comment') {
+      inspectorTitle.textContent = 'Comment';
+      inspectorHint.textContent = 'Click anywhere on the page to drop a sticky note, then type your comment. It is saved as a real PDF comment.';
+      return;
+    }
+    if (tool === 'crop') return inspCrop();
     if (tool === 'rotate') return inspRotate();
     if (tool === 'split') return inspSplit();
     if (tool === 'delete') return inspDelete();
@@ -806,9 +938,20 @@
           <button type="button" class="sty-btn ${a.underline ? 'active' : ''}" id="t-underline" style="text-decoration:underline;">U</button>
         </div>
       </div>
+      <div class="field">
+        <label>Insert symbol</label>
+        <div class="symbol-pad" id="t-symbols">
+          ${SYMBOLS.map(s => `<button type="button" class="sym-btn" data-sym="${s}">${s}</button>`).join('')}
+        </div>
+      </div>
       <label class="check"><input type="checkbox" id="t-bg" ${a.bg ? 'checked' : ''} /> White background (hide content underneath)</label>
       <button class="btn btn-ghost btn-block" id="t-del" type="button" style="margin-top:12px;">Delete text</button>
     `;
+    // symbol palette — preventDefault on mousedown keeps the caret in the text box
+    $('#t-symbols').querySelectorAll('.sym-btn').forEach(btn => {
+      btn.addEventListener('mousedown', e => e.preventDefault());
+      btn.addEventListener('click', () => insertSymbol(a, btn.dataset.sym));
+    });
     const apply = () => { renderOverlay(); reselect(a.id); measureText(a); };
     $('#t-font').onchange = () => {
       a.font = $('#t-font').value;
@@ -824,8 +967,69 @@
     $('#t-del').onclick = () => deleteAnn(a.id);
   }
 
+  // Common math / special symbols for the text tool.
+  const SYMBOLS = ['×','÷','±','≤','≥','≠','≈','√','π','∑','∫','∞','∂','∆','µ','°','²','³','½','¼','¾','·','→','←','↔','•','§','€','£','¥','©','®','™','α','β','γ','θ','λ','Ω'];
+
+  function insertSymbol(a, sym) {
+    const node = annLayer.querySelector(`[data-id="${a.id}"] .ann-text-edit`);
+    if (!node) return;
+    if (document.activeElement === node && document.execCommand) {
+      document.execCommand('insertText', false, sym);
+    } else {
+      node.textContent = (node.textContent || '') + sym;
+    }
+    a.text = node.innerText;
+    measureText(a);
+  }
+
   function reselect(id) {
     annLayer.querySelectorAll('.ann').forEach(n => n.classList.toggle('selected', n.dataset.id === id));
+  }
+
+  function inspComment(a) {
+    inspectorTitle.textContent = 'Comment';
+    inspectorHint.textContent = 'This is saved as a real PDF sticky note. Drag the marker to move it.';
+    inspectorBody.innerHTML = `
+      <div class="field">
+        <label>Note</label>
+        <textarea id="cm-text" rows="5" placeholder="Type your comment…">${PDFUtils.escapeHTML(a.text || '')}</textarea>
+      </div>
+      <button class="btn btn-ghost btn-block" id="cm-del" type="button">Delete comment</button>
+    `;
+    const ta = $('#cm-text');
+    ta.oninput = () => {
+      a.text = ta.value;
+      const el = annLayer.querySelector(`[data-id="${a.id}"]`);
+      if (el) el.title = a.text || 'Comment';
+    };
+    ta.focus();
+    $('#cm-del').onclick = () => deleteAnn(a.id);
+  }
+
+  function inspCrop() {
+    const has = !!state.pageCrops[state.currentPage];
+    inspectorTitle.textContent = 'Crop page';
+    inspectorHint.textContent = has
+      ? 'Drag the box to move it, the corner to resize. Everything outside the box is removed when you save.'
+      : 'Drag a rectangle on the page to set the crop area. Only what is inside is kept.';
+    inspectorBody.innerHTML = `
+      <label class="check"><input type="checkbox" id="crop-all" /> Apply this crop to all pages</label>
+      <button class="btn btn-ghost btn-block" id="crop-reset" type="button" style="margin-top:12px;" ${has ? '' : 'disabled style="opacity:.5"'}>Reset crop on this page</button>
+    `;
+    $('#crop-all').onchange = () => {
+      const c = state.pageCrops[state.currentPage];
+      if (!c) { PDFUtils.setStatus('Draw a crop area first.', 'error'); $('#crop-all').checked = false; return; }
+      if ($('#crop-all').checked) {
+        for (let i = 0; i < state.numPages; i++) state.pageCrops[i] = { ...c };
+      }
+      renderOverlay();
+    };
+    const reset = $('#crop-reset');
+    if (reset) reset.onclick = () => {
+      delete state.pageCrops[state.currentPage];
+      renderOverlay();
+      showInspector('crop');
+    };
   }
 
   // Re-measure a text box after a style change that affects its size.

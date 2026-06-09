@@ -217,6 +217,10 @@
   Engine.variantOf = (bold, italic) =>
     bold && italic ? 'bolditalic' : bold ? 'bold' : italic ? 'italic' : 'regular';
 
+  // Unicode fallback (DejaVu Sans) — broad math/symbol coverage. Used only when
+  // the chosen standard font can't encode a character, so symbols never crash export.
+  const UNICODE_FALLBACK_URL = 'https://cdn.jsdelivr.net/npm/dejavu-fonts-ttf@2.37.3/ttf/DejaVuSans.ttf';
+
   const _fontBytesCache = {};
   Engine.loadFontBytes = async function (url) {
     if (_fontBytesCache[url]) return _fontBytesCache[url];
@@ -233,13 +237,24 @@
   //                 text, size, color('#rrggbb'), bg('#rrggbb'|null),  // text
   //                 imageBytes, mime }]                     // signature
   // pageRotations: { pageIndex: deltaDegrees } applied on top of each page's own rotation.
-  Engine.applyAnnotations = async function (loaded, annotations = [], pageRotations = {}) {
+  // annotations may also include:
+  //   { type:'comment', pageIndex, x, yTop, text }  -> real PDF sticky-note annotation
+  // pageCrops: { pageIndex: { x, yTop, w, h } } -> sets the page CropBox.
+  Engine.applyAnnotations = async function (loaded, annotations = [], pageRotations = {}, pageCrops = {}) {
     const out = await PDFLib.PDFDocument.load(loaded.bytes, { ignoreEncryption: true });
     const pages = out.getPages();
 
     // Per-document font resolution + cache.
     const fontCache = new Map();
     let fontkitRegistered = false;
+    let unicodeFontPromise = null;
+    function ensureFontkit() {
+      if (!fontkitRegistered) {
+        if (!window.fontkit) throw new Error('fontkit not loaded');
+        out.registerFontkit(window.fontkit);
+        fontkitRegistered = true;
+      }
+    }
     async function resolveFont(familyKey, variant) {
       const fam = FONT_FAMILIES[familyKey] || FONT_FAMILIES.arial;
       const key = (FONT_FAMILIES[familyKey] ? familyKey : 'arial') + ':' + variant;
@@ -248,16 +263,28 @@
       if (fam.kind === 'standard') {
         font = await out.embedFont(PDFLib.StandardFonts[fam.std[variant]]);
       } else {
-        if (!fontkitRegistered) {
-          if (!window.fontkit) throw new Error('fontkit not loaded');
-          out.registerFontkit(window.fontkit);
-          fontkitRegistered = true;
-        }
+        ensureFontkit();
         const bytes = await Engine.loadFontBytes(fam.url[variant]);
         font = await out.embedFont(bytes, { subset: true });
       }
       fontCache.set(key, font);
       return font;
+    }
+    // Lazily embed the Unicode fallback once.
+    function unicodeFont() {
+      if (!unicodeFontPromise) {
+        unicodeFontPromise = (async () => {
+          ensureFontkit();
+          const bytes = await Engine.loadFontBytes(UNICODE_FALLBACK_URL);
+          return out.embedFont(bytes, { subset: true });
+        })();
+      }
+      return unicodeFontPromise;
+    }
+    // Standard PDF fonts throw on non-WinAnsi glyphs; pick a font that can encode `s`.
+    async function fontForText(preferred, s) {
+      try { preferred.widthOfTextAtSize(s, 12); return preferred; }
+      catch { return await unicodeFont(); }
     }
 
     const byPage = {};
@@ -289,10 +316,11 @@
             const size = a.size || 14;
             const c = hexToRgb(a.color || '#000000');
             const color = PDFLib.rgb(c.r, c.g, c.b);
-            const font = await resolveFont(a.font || 'arial', Engine.variantOf(a.bold, a.italic));
+            const preferred = await resolveFont(a.font || 'arial', Engine.variantOf(a.bold, a.italic));
             const lineHeight = size * 1.2;
             let baseline = a.yTop - size; // treat yTop as the top of the cap height
             for (const line of text.split('\n')) {
+              const font = await fontForText(preferred, line); // swap to Unicode font if needed
               page.drawText(line, { x: a.x, y: baseline, size, font, color });
               if (a.underline && line.trim()) {
                 let lineWidth;
@@ -307,7 +335,34 @@
               baseline -= lineHeight;
             }
           }
+        } else if (a.type === 'comment') {
+          // Real PDF sticky-note (Text) annotation — shows in viewer comment panes.
+          const top = a.yTop, w = a.w || 20;
+          const noteDict = out.context.obj({
+            Type: 'Annot', Subtype: 'Text', Name: 'Comment', Open: false,
+            Rect: [a.x, top - w, a.x + w, top],
+            Contents: PDFLib.PDFString.of(a.text || ''),
+            C: [1, 0.86, 0.27]
+          });
+          const ref = out.context.register(noteDict);
+          let annots = page.node.lookup(PDFLib.PDFName.of('Annots'));
+          if (!(annots instanceof PDFLib.PDFArray)) {
+            annots = out.context.obj([]);
+            page.node.set(PDFLib.PDFName.of('Annots'), annots);
+          }
+          annots.push(ref);
         }
+      }
+    }
+
+    // Crops -> CropBox (applied per page; coords in PDF user space, top-left origin)
+    if (pageCrops && Object.keys(pageCrops).length) {
+      for (const [idxStr, c] of Object.entries(pageCrops)) {
+        const page = pages[Number(idxStr)];
+        if (!page || !c) continue;
+        const x = Math.max(0, c.x);
+        const bottom = c.yTop - c.h;
+        page.setCropBox(x, bottom, c.w, c.h);
       }
     }
 

@@ -1010,26 +1010,46 @@
     const has = !!state.pageCrops[state.currentPage];
     inspectorTitle.textContent = 'Crop page';
     inspectorHint.textContent = has
-      ? 'Drag the box to move it, the corner to resize. Everything outside the box is removed when you save.'
+      ? 'Drag the box to move it, the corner to resize. Click Crop to apply — the page becomes that area and you keep editing.'
       : 'Drag a rectangle on the page to set the crop area. Only what is inside is kept.';
     inspectorBody.innerHTML = `
-      <label class="check"><input type="checkbox" id="crop-all" /> Apply this crop to all pages</label>
-      <button class="btn btn-ghost btn-block" id="crop-reset" type="button" style="margin-top:12px;" ${has ? '' : 'disabled style="opacity:.5"'}>Reset crop on this page</button>
+      <label class="check"><input type="checkbox" id="crop-all" /> Crop all pages to this area</label>
+      <button class="btn btn-primary btn-block" id="crop-apply" type="button" style="margin-top:12px;" ${has ? '' : 'disabled style="opacity:.5"'}>Crop</button>
+      <button class="btn btn-ghost btn-block" id="crop-reset" type="button" style="margin-top:8px;" ${has ? '' : 'disabled style="opacity:.5"'}>Clear selection</button>
     `;
-    $('#crop-all').onchange = () => {
-      const c = state.pageCrops[state.currentPage];
-      if (!c) { PDFUtils.setStatus('Draw a crop area first.', 'error'); $('#crop-all').checked = false; return; }
-      if ($('#crop-all').checked) {
-        for (let i = 0; i < state.numPages; i++) state.pageCrops[i] = { ...c };
-      }
-      renderOverlay();
-    };
+    const applyBtnEl = $('#crop-apply');
+    if (applyBtnEl) applyBtnEl.onclick = () => applyCropNow($('#crop-all').checked);
     const reset = $('#crop-reset');
     if (reset) reset.onclick = () => {
       delete state.pageCrops[state.currentPage];
       renderOverlay();
       showInspector('crop');
     };
+  }
+
+  // Apply the crop into the document NOW: the cropped region becomes the page,
+  // the preview reloads, and editing continues. Pending text/signatures/etc.
+  // stay live (their coordinates remain valid within the new crop box).
+  async function applyCropNow(allPages) {
+    const cur = state.pageCrops[state.currentPage];
+    if (!cur) { PDFUtils.setStatus('Draw a crop area first.', 'error'); return; }
+    if (allPages) for (let i = 0; i < state.numPages; i++) state.pageCrops[i] = { ...cur };
+    PDFUtils.setStatus('Cropping…');
+    try {
+      // bake the crop only (no annotations/rotations) so those stay editable
+      const bytes = await PDFEngine.applyAnnotations(state.loaded, [], {}, state.pageCrops);
+      state.loaded = await PDFEngine.loadPdf(new File([bytes], state.loaded.name, { type: 'application/pdf' }));
+      state.pageCrops = {};
+      await openPdfjs();
+      vtFile.textContent = `${state.loaded.name} · ${PDFUtils.formatBytes(state.loaded.size)}`;
+      await renderThumbs();
+      await renderPage();
+      setTool('select');
+      PDFUtils.setStatus('Page cropped — keep editing.', 'success');
+    } catch (e) {
+      console.error(e);
+      PDFUtils.setStatus('Crop failed.', 'error');
+    }
   }
 
   // Re-measure a text box after a style change that affects its size.

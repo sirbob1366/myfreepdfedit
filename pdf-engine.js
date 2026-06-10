@@ -378,6 +378,180 @@
     return out.save();
   };
 
+  // ---------- Images to PDF ----------
+  // images: [{ bytes (ArrayBuffer|Uint8Array), mime }]
+  // opts: { pageSize: 'a4'|'letter'|'fit', orientation: 'auto'|'portrait'|'landscape', margin: pt }
+  Engine.imagesToPdf = async function (images, opts = {}) {
+    const SIZES = { a4: [595.28, 841.89], letter: [612, 792] };
+    const pageSize = opts.pageSize ?? 'a4';
+    const orientation = opts.orientation ?? 'auto';
+    const margin = opts.margin ?? 36;
+    const out = await PDFLib.PDFDocument.create();
+    for (const img of images) {
+      let bytes = img.bytes, mime = img.mime;
+      if (mime !== 'image/jpeg' && mime !== 'image/png') {
+        bytes = await Engine.transcodeToPng(bytes, mime);
+        mime = 'image/png';
+      }
+      const embedded = mime === 'image/jpeg' ? await out.embedJpg(bytes) : await out.embedPng(bytes);
+      const iw = embedded.width, ih = embedded.height;
+      if (pageSize === 'fit') {
+        // Page exactly matches the image (1 px at 96 dpi = 0.75 pt)
+        const w = iw * 0.75, h = ih * 0.75;
+        out.addPage([w, h]).drawImage(embedded, { x: 0, y: 0, width: w, height: h });
+      } else {
+        let [pw, ph] = SIZES[pageSize] || SIZES.a4;
+        const landscape = orientation === 'landscape' || (orientation === 'auto' && iw > ih);
+        if (landscape) [pw, ph] = [ph, pw];
+        const page = out.addPage([pw, ph]);
+        const scale = Math.min((pw - margin * 2) / iw, (ph - margin * 2) / ih);
+        const w = iw * scale, h = ih * scale;
+        page.drawImage(embedded, { x: (pw - w) / 2, y: (ph - h) / 2, width: w, height: h });
+      }
+    }
+    return out.save();
+  };
+
+  // Decode any browser-supported image (WebP, GIF, BMP…) to PNG bytes via canvas.
+  Engine.transcodeToPng = async function (bytes, mime) {
+    const blob = new Blob([bytes], { type: mime });
+    const bmp = await createImageBitmap(blob);
+    const canvas = document.createElement('canvas');
+    canvas.width = bmp.width; canvas.height = bmp.height;
+    canvas.getContext('2d').drawImage(bmp, 0, 0);
+    const outBlob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+    return outBlob.arrayBuffer();
+  };
+
+  // ---------- Assemble (organize pages) ----------
+  // sources: array of loaded ({ doc }) objects.
+  // sequence: [{ src, page, rotate } | { blank: { w, h } }] — output page order.
+  // Duplicates are fine: each entry gets its own copy.
+  Engine.assemble = async function (sources, sequence) {
+    const out = await PDFLib.PDFDocument.create();
+    for (const item of sequence) {
+      if (item.blank) {
+        out.addPage([item.blank.w || 595.28, item.blank.h || 841.89]);
+        continue;
+      }
+      const [copied] = await out.copyPages(sources[item.src].doc, [item.page]);
+      if (item.rotate) {
+        const current = copied.getRotation().angle;
+        copied.setRotation(PDFLib.degrees(((current + item.rotate) % 360 + 360) % 360));
+      }
+      out.addPage(copied);
+    }
+    return out.save();
+  };
+
+  // ---------- Watermark ----------
+  // opts: {
+  //   type: 'text'|'image',
+  //   text, fontSize, color '#rrggbb'            (text)
+  //   imageBytes, mime, scale (fraction of page width, default 0.4)  (image)
+  //   opacity 0..1, rotation degrees CCW,
+  //   mode: 'single'|'tiled', position: 'tl|tc|tr|ml|mc|mr|bl|bc|br', margin,
+  //   pages: array of page indices (null = all)
+  // }
+  Engine.watermark = async function (loaded, opts = {}) {
+    const out = await PDFLib.PDFDocument.load(loaded.bytes, { ignoreEncryption: true });
+    const pages = out.getPages();
+    const targets = opts.pages || pages.map((_, i) => i);
+    const opacity = opts.opacity ?? 0.3;
+    const rotation = opts.rotation ?? 0;
+    const rad = rotation * Math.PI / 180;
+    const margin = opts.margin ?? 48;
+    const mode = opts.mode || 'single';
+    const position = opts.position || 'mc';
+
+    let font = null, image = null, size = 0, color = null;
+    if (opts.type === 'image') {
+      image = opts.mime === 'image/jpeg' ? await out.embedJpg(opts.imageBytes) : await out.embedPng(opts.imageBytes);
+    } else {
+      font = await out.embedFont(PDFLib.StandardFonts.Helvetica);
+      size = opts.fontSize ?? 48;
+      const c = hexToRgb(opts.color || '#888888');
+      color = PDFLib.rgb(c.r, c.g, c.b);
+    }
+
+    for (const idx of targets) {
+      const page = pages[idx];
+      if (!page) continue;
+      const { width: pw, height: ph } = page.getSize();
+      let wmW, wmH;
+      if (image) {
+        wmW = pw * (opts.scale ?? 0.4);
+        wmH = wmW * (image.height / image.width);
+      } else {
+        wmW = font.widthOfTextAtSize(opts.text || '', size);
+        wmH = size * 0.7; // approximate cap height of the drawn text box
+      }
+      // Draw so the watermark's box CENTER lands at (cx, cy) after rotation about its draw origin.
+      const drawAt = (cx, cy) => {
+        const ox = cx - (Math.cos(rad) * wmW / 2 - Math.sin(rad) * wmH / 2);
+        const oy = cy - (Math.sin(rad) * wmW / 2 + Math.cos(rad) * wmH / 2);
+        if (image) {
+          page.drawImage(image, { x: ox, y: oy, width: wmW, height: wmH, opacity, rotate: PDFLib.degrees(rotation) });
+        } else {
+          page.drawText(opts.text || '', { x: ox, y: oy, size, font, color, opacity, rotate: PDFLib.degrees(rotation) });
+        }
+      };
+      if (mode === 'tiled') {
+        const stepX = Math.max(wmW * 1.6, 120);
+        const stepY = Math.max(wmH * 5, 120);
+        for (let y = stepY / 2; y < ph + stepY; y += stepY)
+          for (let x = stepX / 2; x < pw + stepX; x += stepX)
+            drawAt(x, y);
+      } else {
+        const cx = position.endsWith('l') ? margin + wmW / 2
+                 : position.endsWith('r') ? pw - margin - wmW / 2
+                 : pw / 2;
+        const cy = position.startsWith('t') ? ph - margin - wmH / 2
+                 : position.startsWith('b') ? margin + wmH / 2
+                 : ph / 2;
+        drawAt(cx, cy);
+      }
+    }
+    return out.save();
+  };
+
+  // ---------- Page numbers / Bates stamps ----------
+  // opts: { position: 'bl'|'bc'|'br'|'tl'|'tc'|'tr', format: '{n}' / 'Page {n} of {total}' / custom,
+  //         start, from, to (0-based inclusive range), fontSize, margin, color,
+  //         bates: { prefix, digits } | null }
+  // {total} = total pages in the document.
+  Engine.addPageNumbers = async function (loaded, opts = {}) {
+    const out = await PDFLib.PDFDocument.load(loaded.bytes, { ignoreEncryption: true });
+    const font = await out.embedFont(PDFLib.StandardFonts.Helvetica);
+    const pages = out.getPages();
+    const from = Math.max(0, opts.from ?? 0);
+    const to = Math.min(pages.length - 1, opts.to ?? pages.length - 1);
+    const size = opts.fontSize ?? 11;
+    const margin = opts.margin ?? 28;
+    const c = hexToRgb(opts.color || '#444444');
+    const color = PDFLib.rgb(c.r, c.g, c.b);
+    const position = opts.position || 'bc';
+    let counter = opts.start ?? 1;
+    for (let i = from; i <= to; i++) {
+      const page = pages[i];
+      let label;
+      if (opts.bates) {
+        label = (opts.bates.prefix || '') + String(counter).padStart(opts.bates.digits ?? 6, '0');
+      } else {
+        label = String(opts.format || '{n}')
+          .replaceAll('{n}', String(counter))
+          .replaceAll('{total}', String(pages.length));
+      }
+      const { width: pw, height: ph } = page.getSize();
+      const tw = font.widthOfTextAtSize(label, size);
+      const x = position.endsWith('l') ? margin : position.endsWith('c') ? (pw - tw) / 2 : pw - margin - tw;
+      const y = position.startsWith('t') ? ph - margin - size : margin;
+      page.drawText(label, { x, y, size, font, color });
+      counter++;
+    }
+    return out.save();
+  };
+
   // ---------- Helpers ----------
   function hexToRgb(hex) {
     const h = String(hex || '#000000').replace('#', '');

@@ -969,6 +969,30 @@
     return { doc, bytes, name: state.loaded.name, size: bytes.length };
   }
 
+  // Bake pending edits, run a document-level transform (watermark, page
+  // numbers, …) and reload the result as the working document. Undo-able.
+  async function bakeInto(transform, okMsg) {
+    PDFUtils.setStatus('Working…');
+    try {
+      const baked = await currentLoaded();
+      const bytes = await transform(baked);
+      state.loaded = await PDFEngine.loadPdf(new File([bytes], state.loaded.name, { type: 'application/pdf' }));
+      state.annotations = [];
+      state.pageRotations = {};
+      state.pageCrops = {};
+      state.selectedAnnId = null;
+      await openPdfjs();
+      vtFile.textContent = `${state.loaded.name} · ${PDFUtils.formatBytes(state.loaded.size)}`;
+      await renderThumbs();
+      await renderPage();
+      commit();
+      PDFUtils.setStatus(okMsg, 'success');
+    } catch (e) {
+      console.error(e);
+      PDFUtils.setStatus('Operation failed.', 'error');
+    }
+  }
+
   // ---------- Inspector ----------
   function showInspector(tool, ann) {
     inspectorBody.innerHTML = '';
@@ -1011,6 +1035,11 @@
     if (tool === 'compress') return inspCompress();
     if (tool === 'toimage') return inspToImage();
     if (tool === 'download') return inspDownload();
+    if (tool === 'watermark') return inspWatermark();
+    if (tool === 'pagenum') return inspPageNum();
+    if (tool === 'fillform') return inspFillForm();
+    if (tool === 'protect') return inspProtect();
+    if (tool === 'ocr') return inspOcr();
   }
 
   function inspText(a) {
@@ -1365,6 +1394,287 @@
       else if (res === 'cancelled') PDFUtils.setStatus('');
       else PDFUtils.setStatus('Save failed.', 'error');
     };
+  }
+
+  // ---------- Watermark ----------
+  function inspWatermark() {
+    inspectorTitle.textContent = 'Watermark';
+    inspectorHint.textContent = 'Stamp text or an image across pages. Applies immediately — undo works.';
+    inspectorBody.innerHTML = `
+      <div class="field"><label>Type</label>
+        <select id="wm-type"><option value="text" selected>Text</option><option value="image">Image</option></select>
+      </div>
+      <div id="wm-text-opts">
+        <div class="field"><label>Text</label><input type="text" id="wm-text" value="CONFIDENTIAL" /></div>
+        <div class="field-row">
+          <div class="field"><label>Size</label><input type="number" id="wm-size" value="48" min="8" max="200" /></div>
+          <div class="field"><label>Color</label><input type="color" id="wm-color" value="#d04545" /></div>
+        </div>
+      </div>
+      <div id="wm-image-opts" style="display:none;">
+        <div class="field"><label>Image (PNG/JPG)</label><input type="file" id="wm-image" accept="image/png,image/jpeg" /></div>
+        <div class="field"><label>Width (% of page)</label><input type="number" id="wm-scale" value="40" min="5" max="100" /></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Opacity %</label><input type="number" id="wm-opacity" value="30" min="5" max="100" /></div>
+        <div class="field"><label>Rotation °</label><input type="number" id="wm-rot" value="45" min="-180" max="180" /></div>
+      </div>
+      <div class="field"><label>Placement</label>
+        <select id="wm-pos">
+          <option value="mc" selected>Center</option>
+          <option value="tiled">Tiled (repeat across page)</option>
+          <option value="tl">Top left</option><option value="tc">Top center</option><option value="tr">Top right</option>
+          <option value="ml">Middle left</option><option value="mr">Middle right</option>
+          <option value="bl">Bottom left</option><option value="bc">Bottom center</option><option value="br">Bottom right</option>
+        </select>
+      </div>
+      <div class="field"><label>Pages (e.g. 1-3, 5 — blank = all)</label><input type="text" id="wm-range" placeholder="all pages" /></div>
+      <button class="btn btn-primary btn-block" id="wm-apply" type="button">Apply watermark</button>
+    `;
+    $('#wm-type').onchange = () => {
+      const t = $('#wm-type').value;
+      $('#wm-text-opts').style.display = t === 'text' ? 'block' : 'none';
+      $('#wm-image-opts').style.display = t === 'image' ? 'block' : 'none';
+    };
+    $('#wm-apply').onclick = async () => {
+      const type = $('#wm-type').value;
+      const opts = {
+        type,
+        opacity: (Number($('#wm-opacity').value) || 30) / 100,
+        rotation: Number($('#wm-rot').value) || 0
+      };
+      const pos = $('#wm-pos').value;
+      if (pos === 'tiled') opts.mode = 'tiled';
+      else opts.position = pos;
+      if (type === 'text') {
+        opts.text = $('#wm-text').value || 'CONFIDENTIAL';
+        opts.fontSize = Number($('#wm-size').value) || 48;
+        opts.color = $('#wm-color').value;
+      } else {
+        const file = $('#wm-image').files[0];
+        if (!file) { PDFUtils.setStatus('Choose a watermark image.', 'error'); return; }
+        opts.imageBytes = await file.arrayBuffer();
+        opts.mime = file.type;
+        opts.scale = (Number($('#wm-scale').value) || 40) / 100;
+      }
+      const rangeText = $('#wm-range').value.trim();
+      if (rangeText) {
+        const pages = parseRange(rangeText, state.numPages);
+        if (!pages.length) { PDFUtils.setStatus('Invalid range.', 'error'); return; }
+        opts.pages = pages;
+      }
+      await bakeInto(src => PDFEngine.watermark(src, opts), 'Watermark applied — keep editing.');
+    };
+  }
+
+  // ---------- Page numbers / Bates ----------
+  function inspPageNum() {
+    inspectorTitle.textContent = 'Page numbers';
+    inspectorHint.textContent = 'Stamp page numbers or legal Bates numbers. Applies immediately — undo works.';
+    inspectorBody.innerHTML = `
+      <div class="field"><label>Mode</label>
+        <select id="pn-mode"><option value="numbers" selected>Page numbers</option><option value="bates">Bates numbering</option></select>
+      </div>
+      <div id="pn-num-opts">
+        <div class="field"><label>Format ({n} = number, {total} = pages)</label>
+          <select id="pn-format">
+            <option value="{n}" selected>1, 2, 3…</option>
+            <option value="Page {n}">Page 1</option>
+            <option value="{n} of {total}">1 of N</option>
+            <option value="Page {n} of {total}">Page 1 of N</option>
+          </select>
+        </div>
+      </div>
+      <div id="pn-bates-opts" style="display:none;">
+        <div class="field-row">
+          <div class="field"><label>Prefix</label><input type="text" id="pn-prefix" value="ABC" /></div>
+          <div class="field"><label>Digits</label><input type="number" id="pn-digits" value="6" min="3" max="12" /></div>
+        </div>
+      </div>
+      <div class="field"><label>Position</label>
+        <select id="pn-pos">
+          <option value="bc" selected>Bottom center</option>
+          <option value="bl">Bottom left</option><option value="br">Bottom right</option>
+          <option value="tc">Top center</option><option value="tl">Top left</option><option value="tr">Top right</option>
+        </select>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Start at</label><input type="number" id="pn-start" value="1" min="0" /></div>
+        <div class="field"><label>Font size</label><input type="number" id="pn-size" value="11" min="6" max="48" /></div>
+      </div>
+      <div class="field"><label>Pages (e.g. 2-10 — blank = all)</label><input type="text" id="pn-range" placeholder="all pages" /></div>
+      <button class="btn btn-primary btn-block" id="pn-apply" type="button">Add numbers</button>
+    `;
+    $('#pn-mode').onchange = () => {
+      const bates = $('#pn-mode').value === 'bates';
+      $('#pn-num-opts').style.display = bates ? 'none' : 'block';
+      $('#pn-bates-opts').style.display = bates ? 'block' : 'none';
+    };
+    $('#pn-apply').onclick = async () => {
+      const opts = {
+        position: $('#pn-pos').value,
+        start: Number($('#pn-start').value) || 1,
+        fontSize: Number($('#pn-size').value) || 11
+      };
+      if ($('#pn-mode').value === 'bates') {
+        opts.bates = {
+          prefix: $('#pn-prefix').value || '',
+          digits: Math.min(12, Math.max(1, Number($('#pn-digits').value) || 6))
+        };
+      } else {
+        opts.format = $('#pn-format').value;
+      }
+      const rangeText = $('#pn-range').value.trim();
+      if (rangeText) {
+        const pages = parseRange(rangeText, state.numPages);
+        if (!pages.length) { PDFUtils.setStatus('Invalid range.', 'error'); return; }
+        opts.from = pages[0];
+        opts.to = pages[pages.length - 1];
+      }
+      await bakeInto(src => PDFEngine.addPageNumbers(src, opts), 'Page numbers added — keep editing.');
+    };
+  }
+
+  // ---------- Form fields ----------
+  function inspFillForm() {
+    inspectorTitle.textContent = 'Form fields';
+    let count = 0;
+    try { count = state.loaded.doc.getForm().getFields().length; } catch { /* no AcroForm */ }
+    if (count) {
+      inspectorHint.textContent = `This PDF contains ${count} fillable field${count === 1 ? '' : 's'}.`;
+      inspectorBody.innerHTML = `
+        <p class="hint" style="margin-bottom:12px;">The dedicated form filler overlays a live input on every field — text boxes, checkboxes, radio buttons and dropdowns — and can flatten your answers on export.</p>
+        <a class="btn btn-primary btn-block" href="/fill-pdf-form/">Open the form filler</a>
+      `;
+    } else {
+      inspectorHint.textContent = 'No fillable (AcroForm) fields detected in this PDF.';
+      inspectorBody.innerHTML = `
+        <p class="hint">This document has no interactive form. Use <strong>Add text</strong> to type anywhere on the page instead.</p>
+      `;
+    }
+  }
+
+  // ---------- Protect (qpdf AES-256) ----------
+  function inspProtect() {
+    inspectorTitle.textContent = 'Password protect';
+    inspectorHint.textContent = 'Encrypts the PDF with AES-256 on your device. Your pending edits are included.';
+    inspectorBody.innerHTML = `
+      <div class="field"><label>Password</label><input type="password" id="pp-1" autocomplete="new-password" /></div>
+      <div class="field"><label>Repeat password</label><input type="password" id="pp-2" autocomplete="new-password" /></div>
+      <button class="btn btn-primary btn-block" id="pp-apply" type="button">Encrypt &amp; save</button>
+      <p class="hint" style="margin-top:10px;">If you lose the password it cannot be recovered — by design.</p>
+    `;
+    $('#pp-apply').onclick = async () => {
+      const p1 = $('#pp-1').value, p2 = $('#pp-2').value;
+      if (!p1) { PDFUtils.setStatus('Enter a password.', 'error'); return; }
+      if (p1 !== p2) { PDFUtils.setStatus('Passwords do not match.', 'error'); return; }
+      PDFUtils.setStatus('Encrypting…');
+      const res = await saveBytes(async () => {
+        const bytes = await currentBytes();
+        return window.QPDF.encrypt(bytes, p1);
+      }, `${PDFEngine.stripExt(state.loaded.name)}_protected.pdf`);
+      if (res === 'saved') PDFUtils.setStatus('Encrypted PDF saved. Keep the password safe.', 'success');
+      else if (res === 'cancelled') PDFUtils.setStatus('');
+      else PDFUtils.setStatus('Encryption failed.', 'error');
+    };
+  }
+
+  // ---------- OCR (Tesseract, self-hosted) ----------
+  const _lazyScripts = {};
+  function loadScriptOnce(src) {
+    if (!_lazyScripts[src]) {
+      _lazyScripts[src] = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = src;
+        s.onload = resolve;
+        s.onerror = () => reject(new Error('Failed to load ' + src));
+        document.head.appendChild(s);
+      });
+    }
+    return _lazyScripts[src];
+  }
+
+  function inspOcr() {
+    inspectorTitle.textContent = 'OCR — make searchable';
+    inspectorHint.textContent = 'Recognizes text in scanned pages and saves a searchable copy. Runs on your device; long documents take a while.';
+    inspectorBody.innerHTML = `
+      <div class="field"><label>Document language</label>
+        <select id="ocr-lang">
+          <option value="eng" selected>English</option>
+          <option value="spa">Spanish</option>
+          <option value="fra">French</option>
+          <option value="deu">German</option>
+          <option value="ita">Italian</option>
+          <option value="por">Portuguese</option>
+          <option value="rus">Russian</option>
+          <option value="ara">Arabic</option>
+          <option value="chi_sim">Chinese (Simplified)</option>
+          <option value="jpn">Japanese</option>
+          <option value="hin">Hindi</option>
+        </select>
+      </div>
+      <button class="btn btn-primary btn-block" id="ocr-run" type="button">Recognize &amp; save</button>
+      <p class="hint" id="ocr-prog" style="margin-top:10px;"></p>
+    `;
+    $('#ocr-run').onclick = runOcr;
+  }
+
+  async function runOcr() {
+    const lang = $('#ocr-lang').value;
+    const prog = $('#ocr-prog');
+    const btn = $('#ocr-run');
+    btn.disabled = true;
+    let worker = null;
+    try {
+      PDFUtils.setStatus('Loading OCR engine…');
+      await loadScriptOnce('/vendor/tesseract/tesseract.min.js');
+      worker = await Tesseract.createWorker(lang, Tesseract.OEM.LSTM_ONLY, {
+        workerPath: '/vendor/tesseract/worker.min.js',
+        corePath: '/vendor/tesseract/core',
+        langPath: '/vendor/tesseract/lang'
+      });
+      const baked = await currentLoaded();
+      const pdfjsDoc = await pdfjsLib.getDocument({ data: baked.bytes.slice(0) }).promise;
+      const pagePdfs = [];
+      for (let i = 1; i <= pdfjsDoc.numPages; i++) {
+        prog.textContent = `Recognizing page ${i} of ${pdfjsDoc.numPages}…`;
+        const page = await pdfjsDoc.getPage(i);
+        const base = page.getViewport({ scale: 1 });
+        const ocrScale = Math.min(200 / 72, 4000 / Math.max(base.width, base.height));
+        const viewport = page.getViewport({ scale: ocrScale });
+        const c = document.createElement('canvas');
+        c.width = Math.round(viewport.width);
+        c.height = Math.round(viewport.height);
+        const cx = c.getContext('2d');
+        cx.fillStyle = '#ffffff';
+        cx.fillRect(0, 0, c.width, c.height);
+        await page.render({ canvasContext: cx, viewport }).promise;
+        // keep the output page at the original PDF dimensions
+        await worker.setParameters({ user_defined_dpi: String(Math.round(72 * ocrScale)) });
+        const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.85));
+        // Tesseract's PDF renderer adds the invisible text layer itself
+        const { data } = await worker.recognize(blob, {}, { pdf: true, text: false });
+        pagePdfs.push(new Uint8Array(data.pdf));
+        c.width = c.height = 0;
+      }
+      pdfjsDoc.destroy();
+      prog.textContent = 'Assembling searchable PDF…';
+      const loadedPages = [];
+      for (const b of pagePdfs) loadedPages.push({ doc: await PDFLib.PDFDocument.load(b) });
+      const merged = await PDFEngine.merge(loadedPages);
+      const res = await saveBytes(() => merged, `${PDFEngine.stripExt(state.loaded.name)}_searchable.pdf`);
+      prog.textContent = '';
+      if (res === 'saved') PDFUtils.setStatus('Searchable PDF saved — try Ctrl+F in any viewer.', 'success');
+      else if (res === 'cancelled') PDFUtils.setStatus('');
+      else PDFUtils.setStatus('OCR save failed.', 'error');
+    } catch (e) {
+      console.error(e);
+      prog.textContent = '';
+      PDFUtils.setStatus('OCR failed: ' + (e.message || 'unknown error'), 'error');
+    } finally {
+      if (worker) worker.terminate();
+      btn.disabled = false;
+    }
   }
 
   // ---------- Range parsing ----------

@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#1c1c1e" media="(prefers-color-scheme: dark)" />
+
+<!-- Google Analytics 4 -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-J0WQFKVLX8"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag("js", new Date());
+  gtag("config", "G-J0WQFKVLX8");
+</script>
+
+<title>Unlock PDF — Remove Password from Your PDF Online Free | MyFreePDFEdit</title>
+<meta name="description" content="Remove the password from your own PDF online for free — enter the password once, get a permanently unlocked copy. In-browser and private. We don't crack unknown passwords." />
+<link rel="canonical" href="https://myfreepdfedit.com/unlock-pdf/" />
+
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://myfreepdfedit.com/unlock-pdf/" />
+<meta property="og:title" content="Unlock PDF — Remove a Known Password Free" />
+<meta property="og:description" content="Stop typing the password every time: remove protection from your own PDF, in your browser." />
+
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="/styles.css" />
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "Unlock PDF — MyFreePDFEdit",
+  "url": "https://myfreepdfedit.com/unlock-pdf/",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Any",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+
+<style>
+  .pw-card {
+    margin-top: 20px;
+    padding: 18px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg-elevated);
+  }
+  .honesty-note {
+    margin-top: 16px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: var(--accent-soft);
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="container nav-inner">
+    <a href="/" class="brand" aria-label="MyFreePDFEdit home">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <rect x="4" y="3" width="20" height="26" rx="3" fill="currentColor" opacity="0.12"/>
+        <rect x="4" y="3" width="20" height="26" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M9 12h10M9 16h10M9 20h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <span class="brand-text">MyFreePDFEdit</span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="/#tools">Tools</a>
+      <a href="/#faq">FAQ</a>
+      <button id="theme-toggle" class="theme-toggle" aria-label="Toggle dark mode" type="button">
+        <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="currentColor"/><g stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></g></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z" fill="currentColor"/></svg>
+      </button>
+    </nav>
+  </div>
+</header>
+
+<main class="tool-page">
+  <div class="container" style="max-width: 760px;">
+
+    <div class="tool-header">
+      <h1>Unlock PDF</h1>
+      <p>Know the password but tired of typing it? Remove protection from your own PDF — in your browser.</p>
+    </div>
+
+    <label class="dropzone" id="dropzone" for="file-input">
+      <svg class="dropzone-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="5" y="11" width="14" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M8 11V7a4 4 0 0 1 7.6-1.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="12" cy="15.5" r="1.5" fill="currentColor"/>
+      </svg>
+      <h2>Drop a protected PDF here or click to choose</h2>
+      <p>Your file and password never leave your device</p>
+      <input id="file-input" type="file" accept="application/pdf" />
+    </label>
+
+    <div class="pw-card" id="pw-card" style="display:none;">
+      <div class="file-pill" style="margin-top:0; margin-bottom:14px;">
+        <span class="file-pill-name" id="file-name"></span>
+      </div>
+
+      <div class="field">
+        <label for="pw">PDF password</label>
+        <input type="password" id="pw" autocomplete="off" />
+      </div>
+
+      <button class="btn btn-primary btn-block" id="unlock-btn" type="button">Remove password & Download</button>
+
+      <div class="honesty-note">
+        <strong>We don't crack passwords.</strong> This tool removes protection only when you provide the
+        correct password — for example, your own files or documents you're authorized to use. If you've
+        lost the password, no honest browser tool can help; contact whoever issued the document.
+      </div>
+    </div>
+
+    <div class="status" role="status"></div>
+
+    <section style="margin-top: 72px;">
+      <h2 class="section-title" style="font-size: 28px;">About removing PDF passwords</h2>
+      <p style="color: var(--text-secondary); font-size: 16px; max-width: 640px; margin: 0 auto;">
+        Bank statements, payslips and invoices often arrive password-protected, which gets tedious if you
+        archive them. This tool decrypts your PDF once — with the password you already know — and saves a
+        permanently unlocked copy. It uses the open-source
+        <a href="https://github.com/qpdf/qpdf" rel="noopener" style="color:var(--accent);">qpdf</a> engine
+        compiled to WebAssembly, running entirely in your browser: your document and password are never
+        uploaded anywhere.
+      </p>
+    </section>
+
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="container footer-bottom" style="border-top: none; padding-top: 24px;">
+    <small>© <span id="year"></span> MyFreePDFEdit — <a href="/" style="color: var(--accent);">Back to all tools</a> · <a href="/protect-pdf/" style="color: var(--accent);">Add a password instead</a></small>
+  </div>
+</footer>
+
+<script src="/app.js" defer></script>
+<script src="/vendor/qpdf/qpdf-engine.js" defer></script>
+<script>
+window.addEventListener('DOMContentLoaded', () => {
+  const dropzone = document.getElementById('dropzone');
+  const input = document.getElementById('file-input');
+  const card = document.getElementById('pw-card');
+  let file = null;
+
+  function openPdf(f) {
+    file = f;
+    document.getElementById('file-name').textContent = `${f.name} (${PDFUtils.formatBytes(f.size)})`;
+    dropzone.style.display = 'none';
+    card.style.display = 'block';
+    PDFUtils.setStatus('');
+  }
+
+  input.addEventListener('change', e => { if (e.target.files[0]) openPdf(e.target.files[0]); });
+  ['dragenter', 'dragover'].forEach(ev =>
+    dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.add('is-drag'); })
+  );
+  ['dragleave', 'drop'].forEach(ev =>
+    dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.remove('is-drag'); })
+  );
+  dropzone.addEventListener('drop', e => {
+    if (e.dataTransfer?.files?.[0]) openPdf(e.dataTransfer.files[0]);
+  });
+
+  document.getElementById('unlock-btn').addEventListener('click', async () => {
+    if (!file) return;
+    const pw = document.getElementById('pw').value;
+    const btn = document.getElementById('unlock-btn');
+    btn.disabled = true;
+    PDFUtils.setStatus('Removing protection… (first run downloads the engine, ~1 MB)');
+    try {
+      const bytes = await QPDF.decrypt(await file.arrayBuffer(), pw);
+      const base = file.name.replace(/\.[^.]+$/, '');
+      PDFUtils.download(new Blob([bytes], { type: 'application/pdf' }), `${base}_unlocked.pdf`);
+      PDFUtils.setStatus('Done. Your unlocked PDF has been downloaded.', 'success');
+    } catch (err) {
+      console.error(err);
+      if (err.invalidPassword) {
+        PDFUtils.setStatus('That password is incorrect for this PDF.', 'error');
+      } else {
+        PDFUtils.setStatus('Could not unlock this PDF. Check that it is a valid, password-protected file.', 'error');
+      }
+    } finally {
+      btn.disabled = false;
+    }
+  });
+});
+</script>
+</body>
+</html>

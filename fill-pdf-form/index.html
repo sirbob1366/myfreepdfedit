@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#1c1c1e" media="(prefers-color-scheme: dark)" />
+
+<!-- Google Analytics 4 -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-J0WQFKVLX8"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag("js", new Date());
+  gtag("config", "G-J0WQFKVLX8");
+</script>
+
+<title>Fill PDF Form Online Free — Type Into Any Fillable PDF | MyFreePDFEdit</title>
+<meta name="description" content="Fill out PDF forms online for free: type into text fields, tick checkboxes, pick from dropdowns, then download — optionally flattened so answers can't be edited. In-browser, no signup." />
+<link rel="canonical" href="https://myfreepdfedit.com/fill-pdf-form/" />
+
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://myfreepdfedit.com/fill-pdf-form/" />
+<meta property="og:title" content="Fill PDF Form Online — Free" />
+<meta property="og:description" content="Type into fillable PDF forms right in your browser. Free and private." />
+
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="/styles.css" />
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "Fill PDF Form — MyFreePDFEdit",
+  "url": "https://myfreepdfedit.com/fill-pdf-form/",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Any",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+
+<style>
+  .form-toolbar {
+    position: sticky; top: 64px; z-index: 5;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    margin-top: 20px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg-elevated);
+  }
+  .form-toolbar .ft-info { font-size: 13px; color: var(--text-secondary); flex: 1; min-width: 160px; }
+  .form-toolbar label.flatten {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 13px; color: var(--text-secondary); cursor: pointer;
+  }
+  .form-pages { margin-top: 20px; }
+  .form-page {
+    position: relative;
+    margin: 0 auto 22px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.16);
+    background: #fff;
+    width: fit-content;
+  }
+  .form-page canvas { display: block; }
+  .ff {
+    position: absolute;
+    box-sizing: border-box;
+    border: 1px solid rgba(58, 110, 230, 0.55);
+    background: rgba(58, 110, 230, 0.08);
+    font-family: Helvetica, Arial, sans-serif;
+    color: #111;
+  }
+  .ff:focus { outline: 2px solid rgba(58, 110, 230, 0.8); background: rgba(58, 110, 230, 0.04); }
+  textarea.ff { resize: none; }
+  input[type="checkbox"].ff, input[type="radio"].ff { accent-color: #3a6ee6; }
+  .no-fields {
+    margin-top: 20px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg-elevated);
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="container nav-inner">
+    <a href="/" class="brand" aria-label="MyFreePDFEdit home">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <rect x="4" y="3" width="20" height="26" rx="3" fill="currentColor" opacity="0.12"/>
+        <rect x="4" y="3" width="20" height="26" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M9 12h10M9 16h10M9 20h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <span class="brand-text">MyFreePDFEdit</span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="/#tools">Tools</a>
+      <a href="/#faq">FAQ</a>
+      <button id="theme-toggle" class="theme-toggle" aria-label="Toggle dark mode" type="button">
+        <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="currentColor"/><g stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></g></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z" fill="currentColor"/></svg>
+      </button>
+    </nav>
+  </div>
+</header>
+
+<main class="tool-page">
+  <div class="container" style="max-width: 980px;">
+
+    <div class="tool-header">
+      <h1>Fill PDF Form</h1>
+      <p>Type straight into fillable PDF fields — text boxes, checkboxes, radio buttons and dropdowns. All in your browser.</p>
+    </div>
+
+    <label class="dropzone" id="dropzone" for="file-input">
+      <svg class="dropzone-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="4" y="3" width="16" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M8 9h8M8 17h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <rect x="8" y="12" width="8" height="2.5" rx="0.5" fill="none" stroke="currentColor" stroke-width="1.2"/>
+      </svg>
+      <h2>Drop a fillable PDF here or click to choose</h2>
+      <p>Your file never leaves your device</p>
+      <input id="file-input" type="file" accept="application/pdf" />
+    </label>
+
+    <div class="form-toolbar" id="form-toolbar" style="display:none;">
+      <span class="ft-info" id="ft-info"></span>
+      <label class="flatten" title="Flattening bakes your answers into the page so they can no longer be edited.">
+        <input type="checkbox" id="flatten-toggle" checked /> Flatten on export
+      </label>
+      <button class="btn btn-primary" id="export-btn" type="button">Download filled PDF</button>
+    </div>
+
+    <div class="no-fields" id="no-fields" style="display:none;">
+      <strong>No fillable fields found in this PDF.</strong><br />
+      This document doesn't contain an interactive (AcroForm) form — it's probably a scan or a flat layout.
+      You can still add text anywhere with the <a href="/editor/" style="color:var(--accent);">PDF editor</a>,
+      or make a scan searchable first with <a href="/pdf-ocr/" style="color:var(--accent);">OCR</a>.
+    </div>
+
+    <div class="form-pages" id="form-pages"></div>
+
+    <div class="status" role="status"></div>
+
+    <section style="margin-top: 72px;">
+      <h2 class="section-title" style="font-size: 28px;">About filling PDF forms</h2>
+      <p style="color: var(--text-secondary); font-size: 16px; max-width: 640px; margin: 0 auto;">
+        Open any fillable PDF — tax forms, applications, contracts — and your browser renders the document with
+        live inputs over every field. Fill in text, tick checkboxes, choose radio options and dropdown values,
+        then download. Leave <strong>Flatten on export</strong> enabled to bake your answers permanently into
+        the page (recipients can't alter them), or turn it off to keep the form editable. Filling happens
+        entirely in your browser via the open-source pdf-lib library — your data never leaves your device.
+      </p>
+    </section>
+
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="container footer-bottom" style="border-top: none; padding-top: 24px;">
+    <small>© <span id="year"></span> MyFreePDFEdit — <a href="/" style="color: var(--accent);">Back to all tools</a></small>
+  </div>
+</footer>
+
+<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script type="module">
+  import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs';
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs';
+  window.pdfjsLib = pdfjsLib;
+  window.dispatchEvent(new Event('pdfjs-ready'));
+</script>
+<script src="/app.js" defer></script>
+<script src="/pdf-engine.js" defer></script>
+<script>
+window.addEventListener('DOMContentLoaded', () => {
+  const dropzone = document.getElementById('dropzone');
+  const input = document.getElementById('file-input');
+  const toolbar = document.getElementById('form-toolbar');
+  const pagesEl = document.getElementById('form-pages');
+
+  let loaded = null;
+  // values[fieldName] = { type, value } — applied to a fresh document on export
+  const values = {};
+
+  function ensurePdfjs(timeout = 8000) {
+    if (window.pdfjsLib) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error('pdf.js failed to load')), timeout);
+      window.addEventListener('pdfjs-ready', () => { clearTimeout(t); resolve(); }, { once: true });
+    });
+  }
+
+  function widgetPageIndex(widget, pages) {
+    const pRef = widget.P();
+    if (pRef) {
+      const idx = pages.findIndex(p => p.ref === pRef || (p.ref.objectNumber === pRef.objectNumber && p.ref.generationNumber === pRef.generationNumber));
+      if (idx !== -1) return idx;
+    }
+    return -1;
+  }
+
+  // Collect a flat list of placeable inputs from the AcroForm
+  function collectFields(doc) {
+    const pages = doc.getPages();
+    let form;
+    try { form = doc.getForm(); } catch { return []; }
+    const out = [];
+    for (const field of form.getFields()) {
+      const name = field.getName();
+      const widgets = field.acroField.getWidgets();
+      widgets.forEach((widget, wIdx) => {
+        const pageIndex = widgetPageIndex(widget, pages);
+        if (pageIndex === -1) return;
+        const rect = widget.getRectangle();
+        const base = { name, pageIndex, rect, wIdx };
+        if (field instanceof PDFLib.PDFTextField) {
+          out.push({ ...base, kind: 'text', multiline: field.isMultiline(), value: field.getText() || '' });
+        } else if (field instanceof PDFLib.PDFCheckBox) {
+          out.push({ ...base, kind: 'checkbox', value: field.isChecked() });
+        } else if (field instanceof PDFLib.PDFRadioGroup) {
+          let onValue = null;
+          try {
+            const ov = widget.getOnValue();
+            if (ov) onValue = ov.decodeText ? ov.decodeText() : ov.toString().slice(1);
+          } catch { /* widget without on-value */ }
+          out.push({ ...base, kind: 'radio', onValue, value: field.getSelected() });
+        } else if (field instanceof PDFLib.PDFDropdown) {
+          out.push({ ...base, kind: 'dropdown', options: field.getOptions(), value: (field.getSelected() || [])[0] || '' });
+        } else if (field instanceof PDFLib.PDFOptionList) {
+          out.push({ ...base, kind: 'optionlist', options: field.getOptions(), value: field.getSelected() || [] });
+        }
+        // Signature fields and buttons are intentionally skipped
+      });
+    }
+    return out;
+  }
+
+  async function openPdf(file) {
+    PDFUtils.setStatus('Loading form…');
+    try {
+      await ensurePdfjs();
+      loaded = await PDFEngine.loadPdf(file);
+      const fields = collectFields(loaded.doc);
+
+      dropzone.style.display = 'none';
+      if (!fields.length) {
+        document.getElementById('no-fields').style.display = 'block';
+        PDFUtils.setStatus('');
+        return;
+      }
+
+      const uniqueNames = new Set(fields.map(f => f.name));
+      document.getElementById('ft-info').textContent =
+        `${loaded.name} — ${uniqueNames.size} field${uniqueNames.size === 1 ? '' : 's'} detected`;
+      toolbar.style.display = 'flex';
+
+      // Seed values with current field state
+      for (const f of fields) {
+        if (!(f.name in values)) values[f.name] = { kind: f.kind, value: f.value };
+      }
+
+      // Render pages with overlaid inputs
+      const pdfjsDoc = await pdfjsLib.getDocument({ data: loaded.bytes.slice(0) }).promise;
+      const byPage = {};
+      fields.forEach(f => (byPage[f.pageIndex] ||= []).push(f));
+
+      for (let i = 1; i <= pdfjsDoc.numPages; i++) {
+        const page = await pdfjsDoc.getPage(i);
+        const base = page.getViewport({ scale: 1 });
+        const scale = Math.min(820, base.width * 1.4) / base.width;
+        const viewport = page.getViewport({ scale });
+        const wrap = document.createElement('div');
+        wrap.className = 'form-page';
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(viewport.width);
+        canvas.height = Math.round(viewport.height);
+        wrap.appendChild(canvas);
+        pagesEl.appendChild(wrap);
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+
+        for (const f of (byPage[i - 1] || [])) {
+          const el = buildInput(f, scale, base.height);
+          if (el) wrap.appendChild(el);
+        }
+      }
+      PDFUtils.setStatus('');
+    } catch (err) {
+      console.error(err);
+      PDFUtils.setStatus('Could not read that PDF. Is it password-protected?', 'error');
+    }
+  }
+
+  function buildInput(f, s, pageHpt) {
+    const { rect } = f;
+    let el;
+    if (f.kind === 'text') {
+      el = document.createElement(f.multiline ? 'textarea' : 'input');
+      if (!f.multiline) el.type = 'text';
+      el.value = f.value;
+      el.style.fontSize = Math.max(9, Math.min(16, rect.height * s * 0.55)) + 'px';
+      el.addEventListener('input', () => { values[f.name].value = el.value; syncTwins(f, el.value); });
+    } else if (f.kind === 'checkbox') {
+      el = document.createElement('input');
+      el.type = 'checkbox';
+      el.checked = !!f.value;
+      el.addEventListener('change', () => { values[f.name].value = el.checked; });
+    } else if (f.kind === 'radio') {
+      el = document.createElement('input');
+      el.type = 'radio';
+      el.name = 'rg-' + f.name;
+      el.checked = f.value != null && f.value === f.onValue;
+      el.addEventListener('change', () => { if (el.checked) values[f.name].value = f.onValue; });
+    } else if (f.kind === 'dropdown' || f.kind === 'optionlist') {
+      el = document.createElement('select');
+      if (f.kind === 'optionlist') el.multiple = true;
+      for (const opt of f.options) {
+        const o = document.createElement('option');
+        o.value = o.textContent = opt;
+        el.appendChild(o);
+      }
+      if (f.kind === 'dropdown') { el.value = f.value; }
+      else { Array.from(el.options).forEach(o => { o.selected = f.value.includes(o.value); }); }
+      el.style.fontSize = Math.max(9, Math.min(15, rect.height * s * 0.5)) + 'px';
+      el.addEventListener('change', () => {
+        values[f.name].value = f.kind === 'dropdown'
+          ? el.value
+          : Array.from(el.selectedOptions).map(o => o.value);
+      });
+    } else {
+      return null;
+    }
+    el.className = 'ff';
+    el.dataset.field = f.name;
+    el.style.left = (rect.x * s) + 'px';
+    el.style.top = ((pageHpt - rect.y - rect.height) * s) + 'px';
+    el.style.width = Math.max(10, rect.width * s) + 'px';
+    el.style.height = Math.max(10, rect.height * s) + 'px';
+    return el;
+  }
+
+  // A text field can appear in several places — keep its copies in sync
+  function syncTwins(f, val) {
+    document.querySelectorAll(`.ff[data-field="${CSS.escape(f.name)}"]`).forEach(el => {
+      if (el.value !== val && (el.tagName === 'INPUT' && el.type === 'text' || el.tagName === 'TEXTAREA')) el.value = val;
+    });
+  }
+
+  input.addEventListener('change', e => { if (e.target.files[0]) openPdf(e.target.files[0]); });
+  ['dragenter', 'dragover'].forEach(ev =>
+    dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.add('is-drag'); })
+  );
+  ['dragleave', 'drop'].forEach(ev =>
+    dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.remove('is-drag'); })
+  );
+  dropzone.addEventListener('drop', e => {
+    if (e.dataTransfer?.files?.[0]) openPdf(e.dataTransfer.files[0]);
+  });
+
+  // Export: apply collected values to a fresh copy, optionally flatten
+  document.getElementById('export-btn').addEventListener('click', async () => {
+    if (!loaded) return;
+    const btn = document.getElementById('export-btn');
+    btn.disabled = true;
+    PDFUtils.setStatus('Saving…');
+    try {
+      const doc = await PDFLib.PDFDocument.load(loaded.bytes, { ignoreEncryption: true });
+      const form = doc.getForm();
+      for (const [name, entry] of Object.entries(values)) {
+        try {
+          if (entry.kind === 'text') form.getTextField(name).setText(entry.value || '');
+          else if (entry.kind === 'checkbox') entry.value ? form.getCheckBox(name).check() : form.getCheckBox(name).uncheck();
+          else if (entry.kind === 'radio' && entry.value != null) form.getRadioGroup(name).select(entry.value);
+          else if (entry.kind === 'dropdown' && entry.value) form.getDropdown(name).select(entry.value);
+          else if (entry.kind === 'optionlist' && entry.value.length) form.getOptionList(name).select(entry.value);
+        } catch (e) {
+          console.warn('Could not set field', name, e);
+        }
+      }
+      if (document.getElementById('flatten-toggle').checked) form.flatten();
+      const bytes = await doc.save();
+      PDFUtils.download(new Blob([bytes], { type: 'application/pdf' }), `${PDFEngine.stripExt(loaded.name)}_filled.pdf`);
+      PDFUtils.setStatus('Done. Your filled PDF has been downloaded.', 'success');
+    } catch (err) {
+      console.error(err);
+      PDFUtils.setStatus('Something went wrong while saving the form.', 'error');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+});
+</script>
+</body>
+</html>

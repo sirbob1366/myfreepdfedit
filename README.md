@@ -37,18 +37,24 @@ python3 -m http.server 8000
 - [ ] Wait until you have ~20-30 indexed pages and some traffic, then apply for AdSense
 - [ ] Block the `*.pages.dev` URL in robots so you don't get duplicate-content penalized
 
-## Build order for remaining tools
+## Tools
 
-Recommend building in this order based on search volume and difficulty:
+Original nine: Merge, Split, Compress, Rotate, PDF→Image, Sign, Edit (unified `/editor/`), PDF→Word, plus the homepage.
 
-1. **Merge PDF** ✅ done
-2. **Split PDF** — pdf-lib, similar to merge
-3. **Compress PDF** — pdf-lib + image re-encoding; moderate
-4. **Rotate PDF** — pdf-lib, easy
-5. **PDF to Image** — pdf.js rendering to canvas
-6. **Sign PDF** — pdf-lib + signature pad canvas
-7. **Edit PDF (annotate)** — pdf.js + pdf-lib; most complex
-8. **PDF to Word** — needs server (Cloudflare Worker + libreoffice OR a paid API). Save for last.
+2026-06 expansion (all client-side, each with its own SEO page; watermark, page
+numbers, protect, OCR and form detection are also inside `/editor/`):
+
+- **/jpg-to-pdf/** — JPG/PNG/WebP → PDF; reorder, page size, orientation, margins (pdf-lib; WebP transcoded via canvas)
+- **/organize-pdf/** — visual page manager: drag-reorder, rotate, delete, duplicate, blank pages, insert from another PDF
+- **/watermark-pdf/** — text/image, opacity, rotation, 9-zone or tiled, range; live preview
+- **/page-numbers/** — position/format presets + **Bates numbering** (legal)
+- **/protect-pdf/** — AES-256 encryption via self-hosted **qpdf wasm** (`/vendor/qpdf/`, see its README)
+- **/unlock-pdf/** — removes encryption *given the correct password* (refuse-by-design: not a cracker)
+- **/pdf-ocr/** — self-hosted **Tesseract.js** (`/vendor/tesseract/`, 11 languages incl. Hindi); rebuilds a searchable PDF on-device, no page caps
+- **/fill-pdf-form/** — AcroForm filler with live overlaid inputs and flatten-on-export
+
+New shared engine functions live in `pdf-engine.js` (`imagesToPdf`, `assemble`,
+`watermark`, `addPageNumbers`); qpdf wrapper in `/vendor/qpdf/qpdf-engine.js`.
 
 ## Virality plan
 

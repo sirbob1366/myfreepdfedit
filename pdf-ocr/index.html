@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#1c1c1e" media="(prefers-color-scheme: dark)" />
+
+<!-- Google Analytics 4 -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-J0WQFKVLX8"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag("js", new Date());
+  gtag("config", "G-J0WQFKVLX8");
+</script>
+
+<title>OCR PDF — Make Scanned PDFs Searchable Online Free, Unlimited | MyFreePDFEdit</title>
+<meta name="description" content="Free unlimited OCR for scanned PDFs — get a searchable, copyable PDF in 11 languages including English, Spanish, Chinese and Hindi. Runs entirely on your device, no upload, no page limit, no signup." />
+<link rel="canonical" href="https://myfreepdfedit.com/pdf-ocr/" />
+
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://myfreepdfedit.com/pdf-ocr/" />
+<meta property="og:title" content="OCR PDF — Searchable PDFs, Free & Unlimited" />
+<meta property="og:description" content="Turn scanned PDFs into searchable documents on your own device. No upload, no page caps, no paywall." />
+
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="/styles.css" />
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "OCR PDF — MyFreePDFEdit",
+  "url": "https://myfreepdfedit.com/pdf-ocr/",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Any",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+
+<style>
+  .ocr-card {
+    margin-top: 20px;
+    padding: 18px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg-elevated);
+  }
+  .ocr-flag {
+    margin: 14px 0 0;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: var(--accent-soft);
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+  .ocr-progress { margin-top: 16px; }
+  .ocr-page-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 4px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .ocr-page-row:last-child { border-bottom: none; }
+  .ocr-page-row .opr-label { width: 80px; color: var(--text-secondary); }
+  .ocr-page-row .opr-bar {
+    flex: 1; height: 6px; border-radius: 3px;
+    background: var(--border); overflow: hidden;
+  }
+  .ocr-page-row .opr-bar > div {
+    height: 100%; width: 0;
+    background: var(--accent);
+    border-radius: 3px;
+    transition: width 0.25s ease;
+  }
+  .ocr-page-row .opr-state { width: 90px; text-align: right; color: var(--text-secondary); }
+  .ocr-page-row.done .opr-state { color: #3aa75c; }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="container nav-inner">
+    <a href="/" class="brand" aria-label="MyFreePDFEdit home">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <rect x="4" y="3" width="20" height="26" rx="3" fill="currentColor" opacity="0.12"/>
+        <rect x="4" y="3" width="20" height="26" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M9 12h10M9 16h10M9 20h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <span class="brand-text">MyFreePDFEdit</span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="/#tools">Tools</a>
+      <a href="/#faq">FAQ</a>
+      <button id="theme-toggle" class="theme-toggle" aria-label="Toggle dark mode" type="button">
+        <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="currentColor"/><g stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></g></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z" fill="currentColor"/></svg>
+      </button>
+    </nav>
+  </div>
+</header>
+
+<main class="tool-page">
+  <div class="container" style="max-width: 760px;">
+
+    <div class="tool-header">
+      <h1>OCR PDF</h1>
+      <p>Turn scanned PDFs into searchable, copyable documents — free, unlimited, and entirely on your device.</p>
+    </div>
+
+    <label class="dropzone" id="dropzone" for="file-input">
+      <svg class="dropzone-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="4" y="3" width="16" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M8 8h8M8 12h8M8 16h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="16.5" cy="16.5" r="3.5" fill="var(--bg, #fff)" stroke="currentColor" stroke-width="1.5"/>
+        <path d="m19 19 2.2 2.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <h2>Drop a scanned PDF here or click to choose</h2>
+      <p>Your file never leaves your device</p>
+      <input id="file-input" type="file" accept="application/pdf" />
+    </label>
+
+    <div class="ocr-card" id="ocr-card" style="display:none;">
+      <div class="file-pill" style="margin-top:0;">
+        <span class="file-pill-name" id="file-name"></span>
+        <span id="file-pages" style="color:var(--text-secondary); font-size:12px;"></span>
+      </div>
+
+      <div class="field" style="margin-top:14px;">
+        <label for="ocr-lang">Document language</label>
+        <select id="ocr-lang">
+          <option value="eng" selected>English</option>
+          <option value="spa">Spanish — Español</option>
+          <option value="fra">French — Français</option>
+          <option value="deu">German — Deutsch</option>
+          <option value="ita">Italian — Italiano</option>
+          <option value="por">Portuguese — Português</option>
+          <option value="rus">Russian — Русский</option>
+          <option value="ara">Arabic — العربية</option>
+          <option value="chi_sim">Chinese (Simplified) — 简体中文</option>
+          <option value="jpn">Japanese — 日本語</option>
+          <option value="hin">Hindi — हिन्दी</option>
+        </select>
+      </div>
+
+      <button class="btn btn-primary btn-block" id="ocr-btn" type="button">Recognize text & Download</button>
+
+      <div class="ocr-flag" id="ocr-warning" style="display:none;">
+        <strong>Heads up:</strong> OCR is compute-heavy and runs on <em>your</em> processor.
+        A long document can take several minutes — keep this tab open and plugged in.
+        The upside: there's no page cap and nothing is uploaded.
+      </div>
+
+      <div class="ocr-progress" id="ocr-progress"></div>
+    </div>
+
+    <div class="status" role="status"></div>
+
+    <section style="margin-top: 72px;">
+      <h2 class="section-title" style="font-size: 28px;">Free, unlimited, on-device OCR</h2>
+      <p style="color: var(--text-secondary); font-size: 16px; max-width: 640px; margin: 0 auto;">
+        Most online OCR tools cap you at a few pages or hide results behind a paywall — because they pay for
+        servers to process your files. This one is different: it runs the open-source
+        <a href="https://github.com/tesseract-ocr/tesseract" rel="noopener" style="color:var(--accent);">Tesseract</a>
+        engine as WebAssembly <em>inside your browser</em>, so there's nothing for us to meter. Every page of
+        your scan is recognized on your own device and rebuilt as a searchable PDF: the original page image
+        stays pixel-identical on top, with an invisible text layer underneath that you can search, select and
+        copy. Eleven recognition languages are available, including English, Spanish, French, German, Chinese,
+        Japanese, Arabic and Hindi.
+      </p>
+    </section>
+
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="container footer-bottom" style="border-top: none; padding-top: 24px;">
+    <small>© <span id="year"></span> MyFreePDFEdit — <a href="/" style="color: var(--accent);">Back to all tools</a></small>
+  </div>
+</footer>
+
+<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="/vendor/tesseract/tesseract.min.js"></script>
+<script type="module">
+  import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs';
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs';
+  window.pdfjsLib = pdfjsLib;
+  window.dispatchEvent(new Event('pdfjs-ready'));
+</script>
+<script src="/app.js" defer></script>
+<script src="/pdf-engine.js" defer></script>
+<script>
+window.addEventListener('DOMContentLoaded', () => {
+  const dropzone = document.getElementById('dropzone');
+  const input = document.getElementById('file-input');
+  const card = document.getElementById('ocr-card');
+  const progressEl = document.getElementById('ocr-progress');
+
+  let file = null;
+  let pageCount = 0;
+
+  function ensurePdfjs(timeout = 8000) {
+    if (window.pdfjsLib) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error('pdf.js failed to load')), timeout);
+      window.addEventListener('pdfjs-ready', () => { clearTimeout(t); resolve(); }, { once: true });
+    });
+  }
+
+  async function openPdf(f) {
+    PDFUtils.setStatus('Reading PDF…');
+    try {
+      await ensurePdfjs();
+      file = f;
+      const probe = await pdfjsLib.getDocument({ data: (await f.arrayBuffer()).slice(0) }).promise;
+      pageCount = probe.numPages;
+      probe.destroy();
+      document.getElementById('file-name').textContent = f.name;
+      document.getElementById('file-pages').textContent = `${pageCount} page${pageCount === 1 ? '' : 's'}`;
+      document.getElementById('ocr-warning').style.display = pageCount > 15 ? 'block' : 'none';
+      dropzone.style.display = 'none';
+      card.style.display = 'block';
+      PDFUtils.setStatus('');
+    } catch (err) {
+      console.error(err);
+      PDFUtils.setStatus('Could not read that PDF. Is it password-protected?', 'error');
+    }
+  }
+
+  input.addEventListener('change', e => { if (e.target.files[0]) openPdf(e.target.files[0]); });
+  ['dragenter', 'dragover'].forEach(ev =>
+    dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.add('is-drag'); })
+  );
+  ['dragleave', 'drop'].forEach(ev =>
+    dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.remove('is-drag'); })
+  );
+  dropzone.addEventListener('drop', e => {
+    if (e.dataTransfer?.files?.[0]) openPdf(e.dataTransfer.files[0]);
+  });
+
+  // Per-page progress rows
+  function buildProgressRows(n) {
+    progressEl.innerHTML = '';
+    const rows = [];
+    for (let i = 1; i <= n; i++) {
+      const row = document.createElement('div');
+      row.className = 'ocr-page-row';
+      row.innerHTML = `
+        <span class="opr-label">Page ${i}</span>
+        <div class="opr-bar"><div></div></div>
+        <span class="opr-state">waiting</span>
+      `;
+      progressEl.appendChild(row);
+      rows.push({
+        row,
+        bar: row.querySelector('.opr-bar > div'),
+        state: row.querySelector('.opr-state'),
+        set(p, label) {
+          this.bar.style.width = Math.round(p * 100) + '%';
+          this.state.textContent = label;
+          if (p >= 1) this.row.classList.add('done');
+        }
+      });
+    }
+    return rows;
+  }
+
+  document.getElementById('ocr-btn').addEventListener('click', async () => {
+    if (!file) return;
+    const lang = document.getElementById('ocr-lang').value;
+    const btn = document.getElementById('ocr-btn');
+    btn.disabled = true;
+    const rows = buildProgressRows(pageCount);
+    let worker = null;
+    try {
+      PDFUtils.setStatus('Loading OCR engine…');
+      let activeRow = null;
+      worker = await Tesseract.createWorker(lang, Tesseract.OEM.LSTM_ONLY, {
+        workerPath: '/vendor/tesseract/worker.min.js',
+        corePath: '/vendor/tesseract/core',
+        langPath: '/vendor/tesseract/lang',
+        logger: m => {
+          if (m.status === 'recognizing text' && activeRow) {
+            activeRow.set(Math.min(0.99, m.progress), Math.round(m.progress * 100) + '%');
+          }
+        }
+      });
+
+      const pdfjsDoc = await pdfjsLib.getDocument({ data: (await file.arrayBuffer()).slice(0) }).promise;
+      const pagePdfs = [];
+
+      for (let i = 1; i <= pageCount; i++) {
+        activeRow = rows[i - 1];
+        activeRow.set(0.02, 'rendering');
+        const page = await pdfjsDoc.getPage(i);
+        // ~200 dpi, capped so huge pages don't blow up canvas memory
+        const base = page.getViewport({ scale: 1 });
+        const scale = Math.min(200 / 72, 4000 / Math.max(base.width, base.height));
+        const viewport = page.getViewport({ scale });
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(viewport.width);
+        canvas.height = Math.round(viewport.height);
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        await page.render({ canvasContext: ctx, viewport }).promise;
+
+        // Keep output page at the original PDF dimensions
+        await worker.setParameters({ user_defined_dpi: String(Math.round(72 * scale)) });
+
+        const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.85));
+        // Tesseract's own PDF renderer lays an invisible glyphless-font text
+        // layer over the image — works for all scripts, unlike manual drawText.
+        const { data } = await worker.recognize(blob, {}, { pdf: true, text: false });
+        pagePdfs.push(new Uint8Array(data.pdf));
+        canvas.width = canvas.height = 0;
+        activeRow.set(1, 'done');
+      }
+      pdfjsDoc.destroy();
+
+      PDFUtils.setStatus('Assembling searchable PDF…');
+      const loadedPages = [];
+      for (const bytes of pagePdfs) {
+        loadedPages.push({ doc: await PDFLib.PDFDocument.load(bytes) });
+      }
+      const merged = await PDFEngine.merge(loadedPages);
+      const base = file.name.replace(/\.[^.]+$/, '');
+      PDFUtils.download(new Blob([merged], { type: 'application/pdf' }), `${base}_searchable.pdf`);
+      PDFUtils.setStatus('Done. Your searchable PDF has been downloaded — try Ctrl+F in any PDF viewer.', 'success');
+    } catch (err) {
+      console.error(err);
+      PDFUtils.setStatus('OCR failed: ' + (err.message || 'unknown error'), 'error');
+    } finally {
+      if (worker) worker.terminate();
+      btn.disabled = false;
+    }
+  });
+});
+</script>
+</body>
+</html>

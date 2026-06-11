@@ -56,7 +56,7 @@ const CHAPTER_BOUNDS_SIMPLE = [0, 0.45, 1];
 // ---------- module state ----------
 let renderer, scene, camera, clock;
 let curve, lookKeys, waypoints;
-let docGroup;
+let docGroup, explodeLines = [], benches = [], vaultGroup = null;
 let progress = 0, targetProgress = 0;
 let running = false, rafId = 0;
 let simpleMode = false, onFallback = null;
@@ -138,6 +138,13 @@ function initScene() {
 
   docGroup = buildDocument();
   scene.add(docGroup);
+  buildExplodeLines();
+
+  if (!simpleMode) {
+    buildBenches();
+    vaultGroup = buildVault();
+    scene.add(vaultGroup);
+  }
 }
 
 // A paper sheet with a gentle bow, like a real held page.
@@ -338,13 +345,254 @@ function updateOverlays(t) {
   if (prFill) prFill.style.height = (t * 100).toFixed(2) + '%';
 }
 
+// ---------- CH2: exploded-view anatomy ----------
+// Each sheet's resting spot in the exploded diagram (local to docGroup).
+function explodedTarget(i) {
+  return {
+    x: (i - 2) * 0.18,
+    y: (i % 2 ? 1 : -1) * 0.10,
+    z: (2 - i) * 1.15,            // camera pushes through the spread
+    ry: (i - 2) * 0.07
+  };
+}
+
+// Fine red annotation leaders that extend from each layer while exploded.
+function buildExplodeLines() {
+  for (let i = 0; i < 5; i++) {
+    const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+    const mat = new THREE.LineBasicMaterial({ color: RED, transparent: true, opacity: 0 });
+    const line = new THREE.Line(geo, mat);
+    docGroup.add(line);
+    explodeLines.push(line);
+  }
+}
+
+// ---------- CH3: glass workbenches with tool vignettes ----------
+const BENCH_X = [-6.8, -3.4, 0, 3.4, 6.8];
+const BENCH_Z = -8.2;
+const FOCUS_T = [0.44, 0.53, 0.62, 0.71, 0.80]; // matches LOOK_KEYS
+
+function glassMaterial() {
+  return new THREE.MeshPhysicalMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.32,
+    roughness: 0.12,
+    metalness: 0,
+    clearcoat: 1,
+    clearcoatRoughness: 0.15
+  });
+}
+
+function miniSheet(w = 0.62, h = 0.84) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), paperMaterial());
+  m.castShadow = true;
+  return m;
+}
+
+function buildBenches() {
+  const glass = glassMaterial();
+  const benchGeo = new THREE.BoxGeometry(2.1, 0.14, 1.25);
+  for (let i = 0; i < 5; i++) {
+    const g = new THREE.Group();
+    g.position.set(BENCH_X[i], -0.85, BENCH_Z);
+    const top = new THREE.Mesh(benchGeo, glass);
+    top.castShadow = false;
+    g.add(top);
+
+    const v = { kind: ['merge', 'split', 'compress', 'ocr', 'protect'][i], parts: {} };
+    if (v.kind === 'merge' || v.kind === 'split') {
+      v.parts.a = miniSheet(); v.parts.b = miniSheet();
+      g.add(v.parts.a, v.parts.b);
+    } else if (v.kind === 'compress') {
+      v.parts.a = miniSheet();
+      g.add(v.parts.a);
+      // red motion lines converging on the sheet
+      v.parts.lines = [];
+      for (let k = 0; k < 3; k++) {
+        const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+        const ln = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: RED, transparent: true, opacity: 0.85 }));
+        g.add(ln);
+        v.parts.lines.push(ln);
+      }
+    } else if (v.kind === 'ocr') {
+      v.parts.a = miniSheet(0.8, 1.05);
+      v.parts.a.material = paperMaterial(makePageTexture('text'));
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(0.22, 0.035, 10, 36),
+        new THREE.MeshStandardMaterial({ color: INK, roughness: 0.4 })
+      );
+      const handle = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.03, 0.03, 0.3, 8),
+        new THREE.MeshStandardMaterial({ color: RED, roughness: 0.5 })
+      );
+      handle.position.set(0.22, -0.24, 0);
+      handle.rotation.z = 0.8;
+      const mag = new THREE.Group();
+      mag.add(ring, handle);
+      v.parts.mag = mag;
+      g.add(v.parts.a, mag);
+    } else if (v.kind === 'protect') {
+      v.parts.a = miniSheet();
+      const body = new THREE.Mesh(
+        new THREE.BoxGeometry(0.3, 0.24, 0.1),
+        new THREE.MeshStandardMaterial({ color: RED, roughness: 0.45 })
+      );
+      const shackle = new THREE.Mesh(
+        new THREE.TorusGeometry(0.11, 0.028, 8, 20, Math.PI),
+        new THREE.MeshStandardMaterial({ color: INK, roughness: 0.35 })
+      );
+      shackle.position.y = 0.12;
+      const lock = new THREE.Group();
+      lock.add(body, shackle);
+      v.parts.lock = lock;
+      g.add(v.parts.a, lock);
+    }
+    g.userData.vignette = v;
+    scene.add(g);
+    benches.push(g);
+  }
+}
+
+// Per-bench focus: 1 when the camera is looking straight at it.
+function benchFocus(t, i) {
+  return clamp01(1 - Math.abs(t - FOCUS_T[i]) / 0.05);
+}
+
+function animateBench(g, f, time) {
+  const v = g.userData.vignette;
+  const hover = 0.9 + Math.sin(time * 1.4 + g.position.x) * 0.03;
+  if (v.kind === 'merge') {
+    const gap = 0.85 - f * 0.7;            // sheets slide together
+    v.parts.a.position.set(-gap / 2, hover, 0);
+    v.parts.b.position.set(gap / 2, hover, -0.02);
+    v.parts.a.rotation.y = 0.25 - f * 0.25;
+    v.parts.b.rotation.y = -0.25 + f * 0.25;
+  } else if (v.kind === 'split') {
+    const gap = 0.15 + f * 0.7;            // one sheet separates
+    v.parts.a.position.set(-gap / 2, hover, 0);
+    v.parts.b.position.set(gap / 2, hover, 0.01);
+    v.parts.a.rotation.y = f * 0.22;
+    v.parts.b.rotation.y = -f * 0.22;
+  } else if (v.kind === 'compress') {
+    const s = 1 - f * 0.4;                 // sheet shrinks
+    v.parts.a.scale.set(s, s, 1);
+    v.parts.a.position.y = hover;
+    v.parts.lines.forEach((ln, k) => {
+      const ang = (k - 1) * 0.9 + Math.PI / 2;
+      const r1 = 0.75, r0 = 0.48 + (1 - f) * 0.2;
+      const pos = ln.geometry.attributes.position;
+      pos.setXYZ(0, Math.cos(ang) * r1, hover + Math.sin(ang) * r1 * 0.9, 0.02);
+      pos.setXYZ(1, Math.cos(ang) * r0, hover + Math.sin(ang) * r0 * 0.9, 0.02);
+      pos.needsUpdate = true;
+      ln.material.opacity = 0.15 + f * 0.75;
+    });
+  } else if (v.kind === 'ocr') {
+    v.parts.a.position.y = hover;
+    v.parts.mag.position.set(
+      Math.sin(time * 0.9) * 0.22 * f,
+      hover + 0.1 + Math.cos(time * 0.7) * 0.12 * f,
+      0.25
+    );
+  } else if (v.kind === 'protect') {
+    v.parts.a.position.y = hover;
+    v.parts.lock.position.set(0, hover + 0.55 - f * 0.45, 0.12); // padlock clicks on
+    v.parts.lock.rotation.z = (1 - f) * 0.35;
+  }
+}
+
+// ---------- CH4: wireframe vault ----------
+function buildVault() {
+  const g = new THREE.Group();
+  g.position.set(0, 0.4, -13);
+
+  const edges = new THREE.LineSegments(
+    new THREE.EdgesGeometry(new THREE.BoxGeometry(4.6, 5.4, 3.2)),
+    new THREE.LineBasicMaterial({ color: INK, transparent: true, opacity: 0 })
+  );
+  g.add(edges);
+
+  // red corner ticks
+  const tickGeo = new THREE.BufferGeometry();
+  const pts = [];
+  const hx = 2.3, hy = 2.7, hz = 1.6, L = 0.45;
+  for (const sx of [-1, 1]) for (const sy of [-1, 1]) {
+    pts.push(sx * hx, sy * hy, hz, sx * (hx - L), sy * hy, hz);
+    pts.push(sx * hx, sy * hy, hz, sx * hx, sy * (hy - L / hy * hx), hz);
+  }
+  tickGeo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  const ticks = new THREE.LineSegments(
+    tickGeo,
+    new THREE.LineBasicMaterial({ color: RED, transparent: true, opacity: 0 })
+  );
+  g.add(ticks);
+
+  // the sealed document inside
+  const inner = new THREE.Mesh(bentPlaneGeometry(2.4, 3.2, 0.06), paperMaterial(makePageTexture('cover')));
+  inner.castShadow = false;
+  g.add(inner);
+
+  g.userData = { edges, ticks, inner };
+  g.visible = false;
+  return g;
+}
+
 // ---------- per-frame choreography of the 3D scene ----------
+const smooth01 = v => { const k = clamp01(v); return k * k * (3 - 2 * k); };
+
 function choreograph(t) {
+  const time = clock.elapsedTime;
+
   // CH1: document gently turns to face the camera path as scroll begins
-  const turn = clamp01(t / 0.18);
+  const turn = clamp01(t / (simpleMode ? 0.40 : 0.18));
   docGroup.rotation.y = -0.55 * turn * turn;
   docGroup.rotation.x = -0.06 * turn;
-  // (CH2 explosion, CH3 vignettes, CH4 vault land in the choreography pass)
+
+  // CH2: explode into the suspended anatomy diagram
+  const exBand = simpleMode ? [0.50, 0.82] : [0.20, 0.34];
+  const e = smooth01((t - exBand[0]) / (exBand[1] - exBand[0]));
+  let coverZ = 0;
+  docGroup.children.forEach(ch => {
+    if (ch.userData.kind === 'tab') return;
+    if (ch.isLine) return;
+    const i = ch.userData.stackIndex;
+    if (i == null) return;
+    const tgt = explodedTarget(i);
+    ch.position.x = tgt.x * e;
+    ch.position.y = tgt.y * e;
+    ch.position.z = -i * 0.02 + tgt.z * e;
+    ch.rotation.y = tgt.ry * e;
+    if (i === 0) coverZ = ch.position.z;
+    const line = explodeLines[i];
+    if (line) {
+      const pos = line.geometry.attributes.position;
+      pos.setXYZ(0, ch.position.x + 1.52, ch.position.y + 0.4, ch.position.z);
+      pos.setXYZ(1, ch.position.x + 1.52 + 0.9 * e, ch.position.y + 0.72, ch.position.z);
+      pos.needsUpdate = true;
+      line.material.opacity = e * 0.9;
+    }
+  });
+  // bookmark tab rides the cover sheet
+  const tab = docGroup.children.find(ch => ch.userData.kind === 'tab');
+  if (tab) tab.position.z = coverZ + 0.02;
+
+  // CH3: workbench vignettes respond as the camera arrives
+  for (let i = 0; i < benches.length; i++) {
+    animateBench(benches[i], benchFocus(t, i), time);
+  }
+
+  // CH4: the vault draws itself around the sealed document
+  if (vaultGroup) {
+    const v = smooth01((t - 0.80) / 0.08);
+    vaultGroup.visible = v > 0.001;
+    if (vaultGroup.visible) {
+      vaultGroup.userData.edges.material.opacity = v * 0.85;
+      vaultGroup.userData.ticks.material.opacity = v;
+      vaultGroup.scale.setScalar(0.86 + v * 0.14);
+      vaultGroup.rotation.y = (t - 0.80) * 0.55;
+      vaultGroup.userData.inner.position.y = Math.sin(time * 0.8) * 0.06;
+    }
+  }
 }
 
 // ---------- lifecycle / render loop ----------

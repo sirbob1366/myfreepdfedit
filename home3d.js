@@ -62,6 +62,7 @@ let running = false, rafId = 0;
 let simpleMode = false, onFallback = null;
 let debug = null;
 let chapters = [], prFill = null, glCanvas = null;
+let benchCards = [], strikeItems = [];
 const fps = { acc: 0, frames: 0, value: 60, lowSince: 0 };
 
 export function start(opts = {}) {
@@ -321,6 +322,10 @@ function initOverlayRefs() {
     });
   }
   prFill = document.getElementById('pr-fill');
+  if (!simpleMode) {
+    benchCards = Array.from(document.querySelectorAll('.bench-card'));
+    strikeItems = Array.from(document.querySelectorAll('.strike-list li'));
+  }
 }
 
 const clamp01 = v => Math.min(1, Math.max(0, v));
@@ -343,6 +348,25 @@ function updateOverlays(t) {
     c.el.classList.toggle('active', op > 0.02);
   }
   if (prFill) prFill.style.height = (t * 100).toFixed(2) + '%';
+
+  // CH3: one card at a time, pinned beside the focused workbench
+  for (let i = 0; i < benchCards.length; i++) {
+    const f = benchFocus(t, i);
+    const card = benchCards[i];
+    card.style.opacity = String(f);
+    card.style.transform = `translateY(${(1 - f) * 24}px)`;
+    card.style.pointerEvents = f > 0.5 ? 'auto' : 'none';
+  }
+
+  // CH4: competitor limits strike in one by one, then dissolve
+  for (let k = 0; k < strikeItems.length; k++) {
+    const tin = 0.825 + k * 0.018;
+    const inF = smooth01((t - tin) / 0.022);
+    const outF = smooth01((t - (0.945 + k * 0.006)) / 0.03);
+    const op = inF * (1 - outF);
+    strikeItems[k].style.opacity = String(op);
+    strikeItems[k].style.transform = `translateY(${(1 - inF) * 14 - outF * 26}px)`;
+  }
 }
 
 // ---------- CH2: exploded-view anatomy ----------

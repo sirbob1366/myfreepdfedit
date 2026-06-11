@@ -63,8 +63,28 @@
       a: 'It works in modern Chrome, Edge, Safari and Firefox on Windows and Mac, plus iOS and Android. Nothing to install.' },
     { id: 'size', q: 'Is there a file size limit?',
       k: ['size limit', 'how big', 'large file', 'maximum', 'limit'],
-      a: 'No hard limit, but very large files (500 MB+) may be slow depending on your device. Under ~200 MB works best.' }
+      a: 'No hard limit, but very large files (500 MB+) may be slow depending on your device. Under ~200 MB works best.' },
+    { id: 'ocr', q: 'Why did my OCR take long?',
+      k: ['ocr', 'slow', 'taking long', 'recognize', 'recognition', 'scanned', 'searchable', 'stuck'],
+      a: '<a href="/pdf-ocr/">OCR</a> runs entirely on your device, so speed depends on your hardware and the page count — a scanned 50-page file can take a few minutes. The first run also downloads the language model once. Keep the tab in the foreground and it will finish.' },
+    { id: 'password', q: 'How do I add or remove a password?',
+      k: ['password', 'protect', 'encrypt', 'unlock', 'locked', 'decrypt', 'secure pdf'],
+      a: 'Use <a href="/protect-pdf/">Protect PDF</a> to add password encryption, or <a href="/unlock-pdf/">Unlock PDF</a> to remove a password (you need to know the current password). Both run in your browser — passwords are never sent anywhere.' },
+    { id: 'organize', q: 'How do I reorder pages?',
+      k: ['reorder', 'organize', 'rearrange', 'order', 'move page', 'sort'],
+      a: 'Use the <a href="/organize-pdf/">Organize PDF</a> tool — drag page thumbnails to reorder, delete the ones you don\'t need, then save. In the editor, the page rail on the left does the same.' }
   ];
+
+  // Support contact, assembled at runtime.
+  const MAIL = ['sawantrob', 'gmail', 'com'];
+  function mailtoHref() {
+    const addr = MAIL[0] + '@' + MAIL[1] + '.' + MAIL[2];
+    const subject = encodeURIComponent('Support: MyFreePDFEdit');
+    const body = encodeURIComponent(
+      'Hi Rob,\n\nWhat I was trying to do:\n\nWhat happened instead:\n\nBrowser & device (e.g. Chrome on Windows 11):\n\nPage: ' + location.href + '\n'
+    );
+    return { addr: addr, href: 'mailto:' + addr + '?subject=' + subject + '&body=' + body };
+  }
 
   const GREETING = "Hi! I can help with how to use the PDF tools. Pick a question or type one below.";
   const SUGGESTED = ['start', 'addtext', 'edittext', 'sign', 'merge', 'crop'];
@@ -93,12 +113,15 @@
     openBtn = el('button', 'cb-fab');
     openBtn.type = 'button';
     openBtn.setAttribute('aria-label', 'Help');
+    openBtn.setAttribute('aria-expanded', 'false');
     openBtn.innerHTML = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2Z" stroke-linejoin="round"/><path d="M9 9h7M9 12h5" stroke-linecap="round"/></svg>';
     openBtn.onclick = toggle;
     document.body.appendChild(openBtn);
 
     panel = el('div', 'cb-panel');
     panel.hidden = true;
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-label', 'Help and FAQ');
     panel.innerHTML = `
       <div class="cb-head">
         <span>Help &amp; FAQ</span>
@@ -120,6 +143,14 @@
       ask(v);
       inp.value = '';
     });
+    panel.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && !panel.hidden) { toggle(); openBtn.focus(); }
+    });
+
+    // Restore last open/closed state (without stealing focus on load).
+    let wasOpen = false;
+    try { wasOpen = localStorage.getItem('cb-open') === '1'; } catch (e) {}
+    if (wasOpen) setOpen(true, { focus: false, remember: false });
   }
 
   function addMsg(who, html) {
@@ -150,22 +181,29 @@
     const m = bestMatch(text);
     if (m) answer(m);
     else {
-      addMsg('bot', "I can only help with using the PDF tools — like adding text, signing, merging, cropping, or saving. Try one of these:");
+      const mail = mailtoHref();
+      addMsg('bot', 'Hmm, I don\'t have an answer for that one. Email us and a human will help: <a href="' + mail.href + '">' + esc(mail.addr) + '</a> — the message is pre-filled, just describe what happened. Or try one of these:');
       chips(['start', 'addtext', 'sign', 'merge', 'convert', 'privacy']);
     }
   }
 
   let started = false;
-  function toggle() {
-    panel.hidden = !panel.hidden;
-    openBtn.classList.toggle('cb-open', !panel.hidden);
-    if (!panel.hidden && !started) {
+  function setOpen(open, opts) {
+    opts = opts || {};
+    panel.hidden = !open;
+    openBtn.classList.toggle('cb-open', open);
+    openBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open && !started) {
       started = true;
       addMsg('bot', GREETING);
       chips(SUGGESTED);
     }
-    if (!panel.hidden) panel.querySelector('#cb-text').focus();
+    if (open && opts.focus !== false) panel.querySelector('#cb-text').focus();
+    if (opts.remember !== false) {
+      try { localStorage.setItem('cb-open', open ? '1' : '0'); } catch (e) {}
+    }
   }
+  function toggle() { setOpen(panel.hidden); }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build);
   else build();

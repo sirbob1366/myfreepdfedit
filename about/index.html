@@ -16,11 +16,42 @@
 </script>
 
 <title>About — MyFreePDFEdit</title>
-<meta name="description" content="MyFreePDFEdit is a free, private PDF toolkit that runs entirely in your browser. Learn what we build and why." />
+<meta name="description" content="MyFreePDFEdit is built by Rob Sawant — free, private PDF tools that run entirely in your browser. No accounts, no watermarks, no uploads." />
 <link rel="canonical" href="https://myfreepdfedit.com/about/" />
 
 <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 <link rel="stylesheet" href="/styles.css" />
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Person",
+      "@id": "https://myfreepdfedit.com/about/#rob-sawant",
+      "name": "Rob Sawant",
+      "jobTitle": "Engineer & Project Manager",
+      "description": "Engineer and project manager who builds genuinely free, privacy-first web tools that process files on-device.",
+      "url": "https://myfreepdfedit.com/about/"
+    },
+    {
+      "@type": "Organization",
+      "@id": "https://myfreepdfedit.com/#organization",
+      "name": "MyFreePDFEdit",
+      "url": "https://myfreepdfedit.com/",
+      "logo": "https://myfreepdfedit.com/favicon.svg",
+      "description": "Free PDF tools that process files entirely in your browser — no signup, no watermarks, no uploads.",
+      "founder": { "@id": "https://myfreepdfedit.com/about/#rob-sawant" },
+      "sameAs": [
+        "https://myfreeimagetool.com/",
+        "https://myfreeaudiotool.com/",
+        "https://myfreevideotool.com/",
+        "https://myfreeinvoicetool.com/"
+      ]
+    }
+  ]
+}
+</script>
 </head>
 <body>
 
@@ -50,44 +81,65 @@
   <div class="container">
     <div class="legal-head">
       <h1>About MyFreePDFEdit</h1>
-      <p class="legal-updated">Free PDF tools that respect your privacy.</p>
+      <p class="legal-updated">Free PDF tools that respect your privacy — built by one person who got tired of tools that don't.</p>
     </div>
 
     <div class="prose">
       <p>
-        MyFreePDFEdit is a free toolkit for working with PDF files — merge, split, compress, rotate,
-        sign, annotate, edit and convert — all from a single website. There's no signup, no watermark,
-        and no file-count limits.
+        Hi — I'm <strong>Rob Sawant</strong>, an engineer and project manager, and I built MyFreePDFEdit
+        because I got tired of "free" web tools that aren't. You know the pattern: you need to merge two
+        PDFs, so you find a free site — which uploads your document to a server somewhere, stamps a
+        watermark across your export, and then asks you to create an account before letting you download
+        page two. I figured a browser is powerful enough to do all of this itself, so that's how I built it.
+      </p>
+
+      <h2>The mission</h2>
+      <p>
+        Every tool here — and across all five of my apps — follows the same rules: <strong>genuinely
+        free</strong>, with no paywalled features and no surprise charges. <strong>No accounts</strong>,
+        because merging a PDF shouldn't require a relationship. <strong>No watermarks</strong>, ever.
+        And <strong>privacy by architecture</strong>, not by policy: your files are processed in your
+        browser, on your device, and never touch a server. It's not that we promise not to look at your
+        documents — we never receive them in the first place.
       </p>
 
       <h2>Privacy by design</h2>
       <p>
-        Most of our tools run <strong>entirely in your browser</strong>. When you merge, split, rotate,
-        compress, sign or edit a PDF, the file is processed on your own device using open-source
-        libraries like <a href="https://pdf-lib.js.org/" rel="noopener" target="_blank">pdf-lib</a> and
-        <a href="https://mozilla.github.io/pdf.js/" rel="noopener" target="_blank">pdf.js</a>. Your
-        document is never uploaded to a server for these tasks. A small number of conversion tools may
-        require server processing — when that's the case, we say so on the tool's page.
+        The tools run <strong>entirely in your browser</strong>. When you merge, split, rotate, compress,
+        sign or edit a PDF, the file is processed on your own device using open-source libraries like
+        <a href="https://pdf-lib.js.org/" rel="noopener" target="_blank">pdf-lib</a> and
+        <a href="https://mozilla.github.io/pdf.js/" rel="noopener" target="_blank">pdf.js</a>. Close the
+        tab and the file is gone — it was never anywhere else. The site is supported by unobtrusive
+        advertising, which is what keeps every tool free; see the <a href="/privacy/">Privacy Policy</a>
+        for details.
       </p>
 
-      <h2>What we believe</h2>
-      <ul>
-        <li><strong>Free should mean free.</strong> No paywalls hiding basic features, no surprise charges.</li>
-        <li><strong>Your files are yours.</strong> We don't want them, store them, or sell them.</li>
-        <li><strong>It should just work.</strong> On any modern browser, on desktop or mobile, with no install.</li>
-      </ul>
-
-      <h2>How we keep the lights on</h2>
+      <h2>The suite</h2>
       <p>
-        The site is supported by unobtrusive advertising. That lets us keep every tool free for everyone.
-        See our <a href="/privacy/">Privacy Policy</a> for details on advertising and cookies.
+        MyFreePDFEdit is one of five apps built on the same idea. There's
+        <a href="https://myfreeimagetool.com/" rel="noopener">MyFreeImageTool</a> for image editing,
+        conversion and OCR; <a href="https://myfreeaudiotool.com/" rel="noopener">MyFreeAudioTool</a>
+        with 30 audio tools and a multitrack studio;
+        <a href="https://myfreevideotool.com/" rel="noopener">MyFreeVideoTool</a> for video editing
+        without uploads; and <a href="https://myfreeinvoicetool.com/" rel="noopener">MyFreeInvoiceTool</a>
+        for invoices, GST and billing documents. All free, all private, all on-device.
       </p>
 
       <h2>Get in touch</h2>
       <p>
-        Have a question, a feature request, or found a bug? We'd love to hear from you — visit our
-        <a href="/contact/">Contact page</a>.
+        Have a question, a feature request, or found a bug? I read everything. Use the
+        <a href="/contact/">Contact page</a>, or email me directly at
+        <a id="support-mail" href="#">&#115;&#97;&#119;&#97;&#110;&#116;&#114;&#111;&#98;&#32;&#91;&#97;&#116;&#93;&#32;&#103;&#109;&#97;&#105;&#108;&#46;&#99;&#111;&#109;</a>.
       </p>
+      <script>
+        (function () {
+          var p = ['sawantrob', 'gmail', 'com'];
+          var addr = p[0] + '@' + p[1] + '.' + p[2];
+          var a = document.getElementById('support-mail');
+          a.href = 'mailto:' + addr;
+          a.textContent = addr;
+        })();
+      </script>
     </div>
   </div>
 </main>
@@ -122,8 +174,31 @@
       </div>
     </div>
   </div>
+  <div class="container footer-apps">
+    <h4>Try our other free apps</h4>
+    <div class="footer-apps-grid">
+      <a class="footer-app" href="https://myfreeimagetool.com/" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m5 17 4-4 3 3 4-5 3 4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span class="footer-app-meta"><span class="footer-app-name">MyFreeImageTool</span><span class="footer-app-desc">Image editing, conversion &amp; OCR</span></span>
+      </a>
+      <a class="footer-app" href="https://myfreeaudiotool.com/" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4" stroke-linecap="round"/></svg>
+        <span class="footer-app-meta"><span class="footer-app-name">MyFreeAudioTool</span><span class="footer-app-desc">30 audio tools + multitrack studio</span></span>
+      </a>
+      <a class="footer-app" href="https://myfreevideotool.com/" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 5 3-5 3V9Z" stroke-linejoin="round"/></svg>
+        <span class="footer-app-meta"><span class="footer-app-name">MyFreeVideoTool</span><span class="footer-app-desc">Video editing without uploads</span></span>
+      </a>
+      <a class="footer-app" href="https://myfreeinvoicetool.com/" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3" stroke-linecap="round"/></svg>
+        <span class="footer-app-meta"><span class="footer-app-name">MyFreeInvoiceTool</span><span class="footer-app-desc">Invoices, GST &amp; billing documents</span></span>
+      </a>
+    </div>
+    <p class="footer-apps-note">All our tools are free, private, and process files on your device.</p>
+  </div>
   <div class="container footer-bottom">
     <small>© <span id="year"></span> MyFreePDFEdit. All rights reserved.</small>
+    <small class="footer-byline">Built by <a href="/about/">Rob Sawant</a></small>
   </div>
 </footer>
 

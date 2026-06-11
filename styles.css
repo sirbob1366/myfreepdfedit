@@ -349,6 +349,48 @@ img, svg { display: block; max-width: 100%; }
   border-top: 1px solid var(--border);
   padding-top: 24px;
   color: var(--text-muted);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.footer-byline a { color: var(--text-secondary); transition: color 0.15s ease; }
+.footer-byline a:hover { color: var(--text); }
+
+/* ---- Cross-promotion: sibling apps ---- */
+.footer-apps { margin-bottom: 24px; }
+.footer-inner + .footer-apps {
+  border-top: 1px solid var(--border);
+  padding-top: 24px;
+}
+.footer-apps h4 {
+  font-size: 13px; font-weight: 600;
+  color: var(--text); margin: 0 0 14px;
+}
+.footer-apps-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+.footer-app {
+  display: flex; align-items: flex-start; gap: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.footer-app:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
+.footer-app svg { width: 20px; height: 20px; color: var(--accent); flex-shrink: 0; margin-top: 2px; }
+.footer-app-name { display: block; font-weight: 600; font-size: 13px; color: var(--text); }
+.footer-app-desc { display: block; font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.footer-apps-note { margin: 14px 0 0; font-size: 12px; color: var(--text-muted); }
+@media (max-width: 900px) {
+  .footer-apps-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 480px) {
+  .footer-apps-grid { grid-template-columns: 1fr; }
 }
 
 /* ----------------------------- Tool page layout ----------------------------- */
@@ -1041,6 +1083,17 @@ select.needs-pick {
   .cb-panel { bottom: 76px; right: 14px; }
 }
 
+/* full-width bottom sheet on small screens */
+@media (max-width: 600px) {
+  .cb-panel {
+    left: 0; right: 0; bottom: 0;
+    width: auto;
+    height: min(75vh, 560px);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border-left: none; border-right: none; border-bottom: none;
+  }
+}
+
 /* ----------------------------- Legal / content pages ----------------------------- */
 .legal { padding: 56px 0 72px; }
 .legal .container { max-width: 760px; }
@@ -1121,6 +1174,7 @@ body::before {
 /* Monospace annotation treatment for structural labels */
 .editor-sidebar h3,
 .footer-cols h4,
+.footer-apps h4,
 .dropzone p,
 .file-size,
 .field label {

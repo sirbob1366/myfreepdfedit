@@ -41,8 +41,15 @@
     })
     .catch(err => console.warn('Account features unavailable:', err));
 
-  // ---------- FAQ help widget (every page) ----------
-  loadScript('/chatbot.js').catch(err => console.warn('Help widget unavailable:', err));
+  // ---------- FAQ help widget ----------
+  // Lazy-loaded once the page is idle. Skipped in the editor, where screen
+  // space is tight — its nav has a Help link instead.
+  if (!location.pathname.startsWith('/editor')) {
+    const loadHelp = () =>
+      loadScript('/chatbot.js').catch(err => console.warn('Help widget unavailable:', err));
+    if ('requestIdleCallback' in window) requestIdleCallback(loadHelp, { timeout: 4000 });
+    else setTimeout(loadHelp, 2000);
+  }
 })();
 
 /* Exposed helpers for tool pages */

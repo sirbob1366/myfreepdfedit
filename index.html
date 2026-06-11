@@ -3,8 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
-<meta name="theme-color" content="#1c1c1e" media="(prefers-color-scheme: dark)" />
+<meta name="theme-color" content="#fcfcfa" />
 
 <!-- Google Analytics 4 -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-J0WQFKVLX8"></script>
@@ -34,7 +33,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
-<!-- JSON-LD: WebApplication + FAQ -->
+<!-- JSON-LD: WebApplication -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -44,15 +43,46 @@
   "applicationCategory": "BusinessApplication",
   "operatingSystem": "Any",
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-  "description": "Free online PDF editor. Merge, split, compress, sign, annotate and convert PDFs in your browser."
+  "description": "Free online PDF editor. Merge, split, compress, sign, OCR, watermark, protect, annotate and convert PDFs in your browser."
+}
+</script>
+
+<!-- JSON-LD: FAQPage -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    { "@type": "Question", "name": "Is MyFreePDFEdit really free?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. Every tool is free with no signup, no watermark, and no file count limits. We support the site through unobtrusive ads." } },
+    { "@type": "Question", "name": "Are my files uploaded to a server?",
+      "acceptedAnswer": { "@type": "Answer", "text": "For most tools — merge, split, compress, sign, annotate, rotate, OCR, protect — your files are processed entirely in your browser and never leave your device. A small number of conversion tools may use server processing; we always say so on the tool page." } },
+    { "@type": "Question", "name": "Is there a file size limit?",
+      "acceptedAnswer": { "@type": "Answer", "text": "There's no hard limit, but very large files (over 500 MB) may be slow depending on your device. For best results we recommend files under 200 MB." } },
+    { "@type": "Question", "name": "Does it work on mobile?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. The site is fully responsive and works on iPhone, iPad and Android devices." } },
+    { "@type": "Question", "name": "Do I need to install anything?",
+      "acceptedAnswer": { "@type": "Answer", "text": "No. MyFreePDFEdit runs in any modern browser — Chrome, Safari, Firefox, Edge. Nothing to install or download." } }
+  ]
 }
 </script>
 
 <link rel="stylesheet" href="/styles.css" />
+<link rel="stylesheet" href="/home.css" />
 </head>
-<body>
+<body class="home">
 
-<header class="nav">
+<!-- Red scroll-progress rule with chapter ticks (enhanced by JS; harmless static otherwise) -->
+<div class="progress-rule" aria-hidden="true">
+  <span class="pr-fill" id="pr-fill"></span>
+  <span class="pr-tick" style="top:0%"></span>
+  <span class="pr-tick" style="top:18%"></span>
+  <span class="pr-tick" style="top:40%"></span>
+  <span class="pr-tick" style="top:80%"></span>
+  <span class="pr-tick" style="top:100%"></span>
+</div>
+
+<header class="nav home-nav">
   <div class="container nav-inner">
     <a href="/" class="brand" aria-label="MyFreePDFEdit home">
       <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
@@ -65,196 +95,143 @@
     <nav class="nav-links" aria-label="Primary">
       <a href="#tools">Tools</a>
       <a href="/editor/">Editor</a>
-      <a href="#how">How it works</a>
       <a href="#faq">FAQ</a>
-      <button id="theme-toggle" class="theme-toggle" aria-label="Toggle dark mode" type="button">
-        <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="currentColor"/><g stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></g></svg>
-        <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z" fill="currentColor"/></svg>
-      </button>
     </nav>
   </div>
 </header>
 
+<!-- WebGL canvas: shown only when home-boot.js enables 3D mode -->
+<canvas id="gl" aria-hidden="true"></canvas>
+
 <main>
+  <!-- ============ SCROLL STAGE: chapters 1–4 ============ -->
+  <div id="stage">
 
-  <section class="hero">
-    <div class="container hero-inner">
-      <p class="eyebrow">Free · Private · No signup</p>
-      <h1 class="hero-title">Every PDF tool you need.<br><span class="hero-accent">In one place.</span></h1>
-      <p class="hero-sub">Merge, split, organize, sign, watermark, OCR, protect and convert PDFs — right in your browser. Your files never leave your device.</p>
-      <div class="hero-cta">
-        <a href="/editor/" class="btn btn-primary">Open editor</a>
-        <a href="#tools" class="btn btn-ghost">Browse tools</a>
+    <!-- CH1 — ARRIVAL -->
+    <section class="chapter ch1" data-band="0,0.18">
+      <div class="ch-frame container">
+        <p class="sht-ref">SHT 01 / 05 — ARRIVAL</p>
+        <h1>Every PDF tool.<br /><em>Engineered</em> for your browser.</h1>
+        <p class="lede">Merge, split, compress, sign, OCR, protect and convert PDF files — seventeen precision instruments that run entirely on your device. No uploads. No accounts. No limits.</p>
+        <div class="cta-row">
+          <a class="btn-tech btn-tech-primary" href="/editor/">Open the editor</a>
+          <a class="btn-tech" href="#tools">Browse all tools</a>
+        </div>
+        <p class="anno hero-anno">REF A — DOCUMENT.PDF · PROCESSED 100% CLIENT-SIDE</p>
+        <img class="hero-static" src="/assets/hero-blueprint.svg" alt="Exploded engineering diagram of a PDF document" width="760" height="560" loading="eager" />
+        <p class="scroll-cue" aria-hidden="true">SCROLL ↓</p>
       </div>
-      <div class="hero-trust">
-        <span class="trust-item"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 6v6c0 5 3.5 9 8 10 4.5-1 8-5 8-10V6l-8-4Z" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="m9 12 2 2 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> 100% in-browser</span>
-        <span class="trust-item"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 12l3 3 5-6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> No watermarks</span>
-        <span class="trust-item"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v20M2 12h20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg> Unlimited files</span>
-      </div>
-    </div>
-  </section>
+    </section>
 
-  <section id="tools" class="tools">
+    <!-- CH2 — DECONSTRUCTION -->
+    <section class="chapter ch2" data-band="0.18,0.40">
+      <div class="ch-frame container">
+        <p class="sht-ref">SHT 02 / 05 — DECONSTRUCTION</p>
+        <h2>Anatomy of a document.</h2>
+        <p class="lede">A PDF is layers of engineering — and every layer here is yours to edit.</p>
+        <ul class="anno-list">
+          <li class="anno-label" data-layer="text"><span class="dot"></span>TEXT LAYER — <a href="/edit-pdf/">edit</a> · <a href="/pdf-ocr/">recognize</a></li>
+          <li class="anno-label" data-layer="image"><span class="dot"></span>IMAGE PLANE — <a href="/pdf-to-image/">extract</a> · <a href="/compress-pdf/">compress</a></li>
+          <li class="anno-label" data-layer="form"><span class="dot"></span>FORM FIELDS — <a href="/fill-pdf-form/">fill &amp; flatten</a></li>
+          <li class="anno-label" data-layer="sig"><span class="dot"></span>SIGNATURE — <a href="/sign-pdf/">draw · type · upload</a></li>
+          <li class="anno-label" data-layer="meta"><span class="dot"></span>METADATA — title, author, page tree</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- CH3 — THE TOOLS -->
+    <section class="chapter ch3" data-band="0.40,0.80">
+      <div class="ch-frame container">
+        <p class="sht-ref">SHT 03 / 05 — INSTRUMENTS</p>
+        <div class="bench-cards">
+          <a class="bench-card" data-bench="0" href="/merge-pdf/">
+            <span class="bc-num">01</span><h3>Merge</h3>
+            <p>Two documents in. One document out. Order preserved to the page.</p>
+            <span class="bc-go">OPEN TOOL →</span>
+          </a>
+          <a class="bench-card" data-bench="1" href="/split-pdf/">
+            <span class="bc-num">02</span><h3>Split</h3>
+            <p>Separate at any boundary. Extract exactly the pages specified.</p>
+            <span class="bc-go">OPEN TOOL →</span>
+          </a>
+          <a class="bench-card" data-bench="2" href="/compress-pdf/">
+            <span class="bc-num">03</span><h3>Compress</h3>
+            <p>Re-engineered encoding. Same document, a fraction of the bytes.</p>
+            <span class="bc-go">OPEN TOOL →</span>
+          </a>
+          <a class="bench-card" data-bench="3" href="/pdf-ocr/">
+            <span class="bc-num">04</span><h3>OCR</h3>
+            <p>Scanned pixels become searchable text. Eleven languages. No page caps.</p>
+            <span class="bc-go">OPEN TOOL →</span>
+          </a>
+          <a class="bench-card" data-bench="4" href="/protect-pdf/">
+            <span class="bc-num">05</span><h3>Protect</h3>
+            <p>AES-256 encryption applied on your machine. The password never travels.</p>
+            <span class="bc-go">OPEN TOOL →</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- CH4 — THE PROMISE -->
+    <section class="chapter ch4" data-band="0.80,1">
+      <div class="ch-frame container">
+        <p class="sht-ref">SHT 04 / 05 — SPECIFICATION</p>
+        <ul class="strike-list" aria-label="Limits other PDF sites impose — none apply here">
+          <li><s>3 tasks per hour</s></li>
+          <li><s>Uploads to servers</s></li>
+          <li><s>Account required</s></li>
+          <li><s>Watermarked output</s></li>
+          <li><s>Premium page limits</s></li>
+        </ul>
+        <h2 class="promise">On your device.<br />Unlimited. <em>Always.</em></h2>
+      </div>
+    </section>
+
+  </div><!-- /stage -->
+
+  <!-- ============ CH5 — THE INDEX (plain DOM from here down) ============ -->
+  <section class="index-zone" id="tools">
     <div class="container">
-      <h2 class="section-title">Pick a tool</h2>
-      <p class="section-sub">All tools are free, unlimited, and work entirely in your browser.</p>
+      <p class="sht-ref">SHT 05 / 05 — INDEX OF INSTRUMENTS</p>
+      <h2 class="section-title">All tools</h2>
+      <p class="section-sub">Free, unlimited, in your browser. Your files never leave your device.</p>
 
-      <div class="tool-grid">
-        <a href="/merge-pdf/" class="tool-card">
-          <div class="tool-icon tool-icon-1">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="9" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="12" y="8" width="9" height="12" rx="1.5" fill="currentColor" opacity=".15"/><rect x="12" y="8" width="9" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
-          </div>
-          <h3>Merge PDF</h3>
-          <p>Combine multiple PDFs into one file in any order.</p>
-        </a>
-
-        <a href="/split-pdf/" class="tool-card">
-          <div class="tool-icon tool-icon-2">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="8" height="16" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="13" y="4" width="8" height="16" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M12 2v20" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2 2"/></svg>
-          </div>
-          <h3>Split PDF</h3>
-          <p>Extract pages or split a PDF into separate files.</p>
-        </a>
-
-        <a href="/compress-pdf/" class="tool-card">
-          <div class="tool-icon tool-icon-3">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V5h4M20 9V5h-4M4 15v4h4M20 15v4h-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><rect x="8" y="9" width="8" height="6" rx="1" fill="currentColor" opacity=".15" stroke="currentColor" stroke-width="1.5"/></svg>
-          </div>
-          <h3>Compress PDF</h3>
-          <p>Reduce file size while keeping quality high.</p>
-        </a>
-
-        <a href="/edit-pdf/" class="tool-card">
-          <div class="tool-icon tool-icon-4">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l10-10-4-4L4 16v4Z" fill="currentColor" opacity=".15" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="m14 6 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-          </div>
-          <h3>Edit PDF</h3>
-          <p>Add text, highlights, shapes and annotations.</p>
-        </a>
-
-        <a href="/sign-pdf/" class="tool-card">
-          <div class="tool-icon tool-icon-5">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 18c4-4 7-12 11-12 2 0 3 1 3 3 0 4-7 7-7 10 0 1 1 2 2 2 2 0 4-2 5-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M3 21h18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-          </div>
-          <h3>Sign PDF</h3>
-          <p>Draw, type or upload your signature.</p>
-        </a>
-
-        <a href="/pdf-to-image/" class="tool-card">
-          <div class="tool-icon tool-icon-6">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="9" cy="10" r="1.5" fill="currentColor"/><path d="m3 17 5-5 4 4 3-3 6 6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
-          </div>
-          <h3>PDF to Image</h3>
-          <p>Convert each page to high-quality JPG or PNG.</p>
-        </a>
-
-        <a href="/pdf-to-word/" class="tool-card">
-          <div class="tool-icon tool-icon-7">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 9h8M8 13h8M8 17h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-          </div>
-          <h3>PDF to Word</h3>
-          <p>Convert PDFs to editable Word documents.</p>
-        </a>
-
-        <a href="/rotate-pdf/" class="tool-card">
-          <div class="tool-icon tool-icon-8">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M21 4v5h-5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </div>
-          <h3>Rotate PDF</h3>
-          <p>Rotate pages individually or all at once.</p>
-        </a>
-
-        <a href="/jpg-to-pdf/" class="tool-card">
-          <div class="tool-icon tool-icon-1">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="13" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="7.5" cy="9" r="1.2" fill="currentColor"/><path d="m3 14 4-4 3 3 2-2 4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M19 9v10m0 0 2.5-2.5M19 19l-2.5-2.5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </div>
-          <h3>JPG to PDF</h3>
-          <p>Turn JPG, PNG and WebP images into a PDF.</p>
-        </a>
-
-        <a href="/organize-pdf/" class="tool-card">
-          <div class="tool-icon tool-icon-2">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5" fill="currentColor" opacity=".15"/><rect x="13" y="3" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M15 17h4m-2-2v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-          </div>
-          <h3>Organize PDF</h3>
-          <p>Reorder, rotate, delete, duplicate and insert pages.</p>
-        </a>
-
-        <a href="/watermark-pdf/" class="tool-card">
-          <div class="tool-icon tool-icon-3">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="m7 16 10-8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="m7 12 6-4.8M11 17l6-4.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".4"/></svg>
-          </div>
-          <h3>Watermark PDF</h3>
-          <p>Stamp text or a logo across your pages.</p>
-        </a>
-
-        <a href="/page-numbers/" class="tool-card">
-          <div class="tool-icon tool-icon-4">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 7h8M8 11h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".4"/><path d="M11 15.5h2M12 14.5v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-          </div>
-          <h3>Page Numbers</h3>
-          <p>Number pages — including legal Bates stamps.</p>
-        </a>
-
-        <a href="/protect-pdf/" class="tool-card">
-          <div class="tool-icon tool-icon-5">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="15.5" r="1.5" fill="currentColor"/></svg>
-          </div>
-          <h3>Protect PDF</h3>
-          <p>Add AES-256 password encryption.</p>
-        </a>
-
-        <a href="/unlock-pdf/" class="tool-card">
-          <div class="tool-icon tool-icon-6">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 11V7a4 4 0 0 1 7.6-1.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="12" cy="15.5" r="1.5" fill="currentColor"/></svg>
-          </div>
-          <h3>Unlock PDF</h3>
-          <p>Remove a password you already know.</p>
-        </a>
-
-        <a href="/pdf-ocr/" class="tool-card">
-          <div class="tool-icon tool-icon-7">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 8h8M8 12h8M8 16h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="16.5" cy="16.5" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="m18.7 18.7 2 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-          </div>
-          <h3>OCR PDF</h3>
-          <p>Make scanned PDFs searchable — free &amp; unlimited.</p>
-        </a>
-
-        <a href="/fill-pdf-form/" class="tool-card">
-          <div class="tool-icon tool-icon-8">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 8h8M8 17h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><rect x="8" y="11" width="8" height="2.5" rx=".5" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
-          </div>
-          <h3>Fill PDF Form</h3>
-          <p>Type into fillable fields, then flatten and download.</p>
-        </a>
-      </div>
-    </div>
-  </section>
-
-  <section id="how" class="how">
-    <div class="container">
-      <h2 class="section-title">How it works</h2>
-      <div class="how-grid">
-        <div class="how-step">
-          <span class="how-num">1</span>
-          <h3>Choose a tool</h3>
-          <p>Pick what you want to do — merge, split, sign, convert, and more.</p>
+      <div class="tool-index">
+        <div class="ti-group">
+          <h3 class="ti-cat">ORGANIZE</h3>
+          <a href="/merge-pdf/"><strong>Merge PDF</strong><span>Combine files into one</span></a>
+          <a href="/split-pdf/"><strong>Split PDF</strong><span>Extract or separate pages</span></a>
+          <a href="/organize-pdf/"><strong>Organize PDF</strong><span>Reorder, duplicate, insert</span></a>
+          <a href="/rotate-pdf/"><strong>Rotate PDF</strong><span>Any page, any angle</span></a>
+          <a href="/page-numbers/"><strong>Page Numbers</strong><span>Incl. Bates numbering</span></a>
         </div>
-        <div class="how-step">
-          <span class="how-num">2</span>
-          <h3>Drop your files</h3>
-          <p>Drag and drop or select files. Everything stays on your device.</p>
+        <div class="ti-group">
+          <h3 class="ti-cat">CONVERT &amp; OPTIMIZE</h3>
+          <a href="/jpg-to-pdf/"><strong>JPG to PDF</strong><span>Images become pages</span></a>
+          <a href="/pdf-to-image/"><strong>PDF to Image</strong><span>Pages become JPG/PNG</span></a>
+          <a href="/pdf-to-word/"><strong>PDF to Word</strong><span>Editable documents</span></a>
+          <a href="/pdf-ocr/"><strong>OCR PDF</strong><span>Make scans searchable</span></a>
+          <a href="/compress-pdf/"><strong>Compress PDF</strong><span>Shrink file size</span></a>
         </div>
-        <div class="how-step">
-          <span class="how-num">3</span>
-          <h3>Download instantly</h3>
-          <p>Your processed PDF is ready in seconds. No signup. No watermark.</p>
+        <div class="ti-group">
+          <h3 class="ti-cat">EDIT &amp; SIGN</h3>
+          <a href="/editor/"><strong>PDF Editor</strong><span>Everything, live, in one place</span></a>
+          <a href="/edit-pdf/"><strong>Edit PDF</strong><span>Text, shapes, annotations</span></a>
+          <a href="/sign-pdf/"><strong>Sign PDF</strong><span>Draw, type or upload</span></a>
+          <a href="/fill-pdf-form/"><strong>Fill PDF Form</strong><span>Live fields, flatten on export</span></a>
+          <a href="/watermark-pdf/"><strong>Watermark PDF</strong><span>Text or logo stamps</span></a>
+        </div>
+        <div class="ti-group">
+          <h3 class="ti-cat">SECURE</h3>
+          <a href="/protect-pdf/"><strong>Protect PDF</strong><span>AES-256 password</span></a>
+          <a href="/unlock-pdf/"><strong>Unlock PDF</strong><span>Remove a known password</span></a>
         </div>
       </div>
     </div>
   </section>
 
-  <section id="faq" class="faq">
+  <section id="faq" class="faq index-zone">
     <div class="container">
       <h2 class="section-title">Frequently asked questions</h2>
 
@@ -265,7 +242,7 @@
 
       <details class="faq-item">
         <summary>Are my files uploaded to a server?</summary>
-        <p>For most tools — merge, split, compress, sign, annotate, rotate — your files are processed entirely in your browser and never leave your device. A small number of conversion tools may use server processing; we always say so on the tool page.</p>
+        <p>For most tools — merge, split, compress, sign, annotate, rotate, OCR, protect — your files are processed entirely in your browser and never leave your device. A small number of conversion tools may use server processing; we always say so on the tool page.</p>
       </details>
 
       <details class="faq-item">
@@ -284,10 +261,9 @@
       </details>
     </div>
   </section>
-
 </main>
 
-<footer class="footer">
+<footer class="footer index-zone">
   <div class="container footer-inner">
     <div class="footer-brand">
       <span class="brand-text">MyFreePDFEdit</span>
@@ -331,5 +307,6 @@
 </footer>
 
 <script src="/app.js" defer></script>
+<script src="/home-boot.js" defer></script>
 </body>
 </html>

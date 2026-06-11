@@ -11,6 +11,24 @@ Free in-browser PDF toolkit. Apple Preview-inspired UI. Privacy-first (most tool
 
 Stack: vanilla HTML/CSS/JS + `pdf-lib` via CDN. No build step. Drop on any static host.
 
+## Homepage 3D experience (2026-06)
+
+The homepage is a scroll-driven Three.js scene ("TECHNICAL DOCUMENT" direction):
+camera travels a CatmullRom path through five chapters (arrival → exploded
+document anatomy → tool workbenches → vault promise → plain-DOM tool index).
+
+- `home-boot.js` decides the mode (full 3D / mobile-simplified / static) and
+  lazy-loads `/vendor/three/` + `/vendor/gsap/` (789KB total) after first paint.
+- `home3d.js` is the scene + choreography. Tune the camera with `/?DEBUG=1`
+  (waypoint editor, FPS, `c` captures a PNG frame — use it to regenerate the
+  static hero in `/assets/`).
+- **Static-first**: with JS disabled the page is a complete crawlable document
+  (h1, 17-tool index, FAQ + FAQPage JSON-LD, footer). Reduced-motion, no-WebGL,
+  or sustained <30fps on mobile fall back to the static layout with the
+  blueprint SVG hero.
+- Tool pages echo the language in pure CSS (vellum grid, precision-red accent,
+  monospace annotations) — zero WebGL outside the homepage.
+
 ## Run locally
 
 ```bash

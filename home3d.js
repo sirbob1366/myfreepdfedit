@@ -287,7 +287,7 @@ function initScroll() {
 
   const bounds = simpleMode ? CHAPTER_BOUNDS_SIMPLE : CHAPTER_BOUNDS;
 
-  ScrollTrigger.create({
+  const st = ScrollTrigger.create({
     trigger: '#stage',
     start: 'top top',
     end: 'bottom bottom',
@@ -305,6 +305,10 @@ function initScroll() {
       delay: 0.25
     }
   });
+
+  // If the page loads already scrolled (refresh mid-page), start in place
+  // instead of flying the camera from the hero.
+  targetProgress = progress = st.progress;
 }
 
 // ---------- HTML overlay sync ----------
@@ -631,6 +635,27 @@ function initLifecycle() {
   document.addEventListener('visibilitychange', () => setRunning(!document.hidden));
   window.addEventListener('blur', () => setRunning(false));
   window.addEventListener('focus', () => { if (!document.hidden) setRunning(true); });
+  glCanvas.addEventListener('webglcontextlost', e => {
+    e.preventDefault();
+    bail();
+  });
+}
+
+// Tear down cleanly and hand the page to the static layout.
+function bail() {
+  setRunning(false);
+  try { if (window.ScrollTrigger) window.ScrollTrigger.killAll(); } catch (e) {}
+  const clear = el => {
+    el.style.opacity = '';
+    el.style.transform = '';
+    el.style.pointerEvents = '';
+    el.classList.remove('active');
+  };
+  chapters.forEach(c => clear(c.el));
+  benchCards.forEach(clear);
+  strikeItems.forEach(clear);
+  try { renderer.dispose(); } catch (e) {}
+  onFallback();
 }
 
 function tick() {
@@ -659,11 +684,10 @@ function trackFps(dt) {
     if (simpleMode && !debug) {
       if (fps.value < 30) {
         fps.lowSince = fps.lowSince || performance.now();
-        if (performance.now() - fps.lowSince > 3000) {
-          setRunning(false);
-          onFallback();
-        }
+        if (performance.now() - fps.lowSince > 3000) bail();
       } else fps.lowSince = 0;
+    } else if (!simpleMode && fps.value < 40 && renderer.getPixelRatio() > 1) {
+      renderer.setPixelRatio(1); // desktop: degrade resolution before anything else
     }
   }
 }
